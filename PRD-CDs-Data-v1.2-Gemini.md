@@ -120,29 +120,84 @@ Muziek-liefhebbers en verzamelaars met een thuisserver (HomeLab) en een vrij gro
 * **Custom Tags:** Vrije invoer, kleur-codeerbaar (bijv. "Favoriet", "Nog luisteren").
 * **Locatie:** Veld voor Kast/Plank.
 
+**Data-objecten**
+- **Release (CD/media-item)** met metadata:
+  - Titel  
+  - Artiest(en) (meerdere)  
+  - Tracklist (tracknummer, titel; optioneel duur)  
+  - Jaar (releasejaar)
+  - Aankoopdatum  
+  - Codes: UPC/EAN, catalogusnummer, SPARS  
+  - Genre(s), te selecteren uit een default list  
+  - Type: CD / Blu‑ray (uitbreidbaar)  
+  - Notitie (vrij veld)  
+  - Fysieke locatie (zie 5.1.3)
+  - Tags  
+  - Eigen rating  (1-5 sterren)   
+  - Covers (min. front; opt. back/inside)
+
+  **Covers:**
+- Front cover (verplicht), Back/Inner (optioneel). Max resolutie 800x800px (server-side resize). Opslag als bestand in `/covers` map, niet in DB.
+- JPG/PNG  
+- Bestanden op disk (niet in DB), DB bewaart paden + checksum  
+- Automatische thumbnail-generatie (voor performance)
 
 * **Invoer:**
-* Zoeken op Barcode/Titel via externe API (MusicBrainz).
+* Zoeken op Barcode/Titel via externe API (Discogs API).
+  - Barcode scan op mobiel → lookup  
+* Lookup-resultaten tonen als lijst → gebruiker kiest juiste match → import metadata + covers  
 * Handmatige correctie en aanvulling (inclusief tags toevoegen tijdens import).
-
+* Handmatig toevoegen (form) als niet online gevonden  
+* Altijd mogelijkheid om data te corrigeren vóór opslaan  
+* Duplicaatwaarschuwing (barcode/cataloguscode)
 
 * **Zoeken:**
-* Filteren op Artiest, Jaar, **Tags** en Locatie.
-* Combinaties (AND/OR).
+* Snelzoeken (1 veld) over titel, artiest, track, code, notitie  
+  - Zoekbalk (global search).
+* filters (jaar, type, genre, locatie, enzovoort)  
+* Combinaties (Boolean operators: AND, OR, NOT).   
+* “bevat” (LIKE) + exacte match
 * AI-ondersteund zoeken ("Zoek albums die lijken op...").
+* Sorteren en pagineren
 
+**Fysieke locatie (vindbaarheid)**
+* Locatiemodel (simpel maar krachtig):
+  - Opslagtype: Kast / Box / Krat / Anders  
+  - Locatienaam (bijv. “Kast woonkamer”)  
+  - Sectie/Rij/Plank (vrij)  
+  - Positie (nummer)  
+* Rapportage om per locatie te sorteren en eventueel labels te maken (v2)
+
+**Rapportage & inzichten**
+- Overzichtsschermen:
+  - totalen (aantal releases, aantal artiesten, per type)  
+  - per artiest / per jaar / per genre / per locatie  
+  - duplicaten (exact + “mogelijk”)  
+- Export/back-up
+
+**Export / back-up / restore**
+- Eén “export bundle” (ZIP) met:
+  - database dump (bijv. SQLite file of JSON + schema versie)  
+  - covers + thumbnails  
+  - manifest.json met versie, datum, checksums  
+- Import/restore met validatie en migratiepad (schema versie)
 
 * **Techniek:**
 * Webinterface geoptimaliseerd voor mobiel (Mobile First).
 * Docker container voor eenvoudige hosting.
 
 
-
 ### 5.2 Niet in scope v1
 
 * Complex gebruikersbeheer (single user is de standaard).
 * Offline-sync (applicatie gaat uit van verbinding met thuisserver).
-* Streaming van audio.
+* Audio rippen, afspelen of streaming.   
+* Multi-user rollen/permissions uitgebreid (alleen basic auth in v1)  
+* Automatische herkenning via audio fingerprinting  
+* Geavanceerde label/print workflows (PDF labels)  
+* Volledig editten van track-duren, credits, matrix/runout (kan later)
+*   Sociale features (delen van lijsten met vrienden).
+*   Geautomatiseerde waardebepaling (koppelen met marktplaatsen).
 
 ---
 
@@ -153,23 +208,43 @@ Muziek-liefhebbers en verzamelaars met een thuisserver (HomeLab) en een vrij gro
 **P0 – Must Have (De basis)**
 
 * **CRUD Functionaliteit:** CD's aanmaken, lezen, updaten, verwijderen.
+* **Snelle invoer** Barcode invoer + lookup + keuze match + import  
+* **Covers** Covers uploaden en tonen.
 * **Tagging Systeem:** Het kunnen aanmaken, toewijzen en verwijderen van tags bij albums.
 * **Filteren op Tags:** "Toon alle CD's met tag X".
 * **MusicBrainz Integratie:** Ophalen metadata.
 * **Mobile Responsive Design:** Goed werkend op smartphone (iOS/Android browsers).
-* **Locatie Beheer:** Veld om fysieke plek aan te duiden.
+* **Locatie Beheer:** Veld om fysieke plek aan te duiden + sorteerbare lijsten.
+* **Duplicaten** Duplicaatdetectie (exact)  
+* **Snelzoeken** Snelzoeken + geavanceerd zoeken (EN/OF, bevat)  
+* **Export** Export/restore bundle (ZIP)  
+* **Responsive** Responsive mobile-first UI (werkt goed op telefoon/tablet)  
+* **Deployment** Deployment: LAN-first + externe toegang via reverse proxy (Nginx)
+* **Database** Database structuur (SQLModel/SQLite).
+
 
 **P1 – Should Have**
 
-* **Barcode Scanner:** Via camera in de browser (html5-qrcode).
 * **AI Search:** "Natural language" queries via Gemini.
 * **Batch Tagging:** Meerdere CD's selecteren en in één keer een tag geven.
+* **Bulk** Bulk acties (meerdere items tegelijk locatie wijzigen)  
+* **Thumbnails** Thumbnail/caching optimalisaties  
+* **Export** CSV-export van lijst/rapport  
+* **Audit** Audit log (wie/wat/wanneer) – ook nuttig voor “undo”
+* **Statistics** Statistieken dashboard (Grafieken: Genre verdeling, Jaar van uitgave).
 
 **P2 – Nice to Have**
 
 * Export naar PDF/CSV.
 * Dark Mode.
 * Willekeurige album suggestie ("Shuffle").
+* Labels/QR-codes printen voor dozen/kasten  
+* Slimme “orde-advies” (bijv. alfabetisch per artiest, of per genre)  
+* Edition management (meerdere versies van dezelfde release)  
+* Integratie met externe bronnen (meerdere providers) + mapping UI  
+* Voice search (mobiel)
+* Authenticatie & accounts (Google OAuth als IDP) + basis autorisatie
+
 
 ---
 
@@ -177,16 +252,34 @@ Muziek-liefhebbers en verzamelaars met een thuisserver (HomeLab) en een vrij gro
 
 ### 7.1 Beheer
 
-* "Als gebruiker wil ik tijdens het toevoegen van een CD direct de tag 'Nieuw gekocht' kunnen toevoegen."
-* "Als gebruiker wil ik een lijst van mijn eigen tags beheren (bijv. typfouten in tags corrigeren)."
+* Als gebruiker wil ik tijdens het toevoegen van een CD direct de tag 'Nieuw gekocht' kunnen toevoegen.
+* Als gebruiker wil ik een lijst van mijn eigen tags beheren (bijv. typfouten in tags corrigeren).
+*  Als gebruiker wil ik een CD handmatig kunnen toevoegen   
+   - AC: formulier valideert verplichte velden; opslaan toont detailpagina
+*   Als gebruiker wil ik CD's toevoegen door middel van een barcode scan (camera of toetsenbord), zodat ik niet alles hoef over te typen.
+   - AC: scan → resultatenlijst → keuze → conceptdetail → opslaan  
+   - AC: bij bestaande barcode waarschuwing + optie “toch toevoegen”
+*   Als gebruiker wil ik meerdere artiesten aan een album kunnen koppelen (bijv. "Various Artists" of samenwerkingen).
+* Als gebruiker wil ik een export kunnen maken en later herstellen  
+   - AC: export bundle bevat DB + covers; restore levert identieke collectie
 
 ### 7.2 Zoeken
 
-* "Als gebruiker wil ik zoeken op alle CD's die de tag 'Instrumentaal' hebben EN uit het jaar '1995' komen."
+* Als gebruiker wil ik snel kunnen zoeken op titel/artist/track/code.   
+* Als gebruiker wil ik zoeken op alle CD's die de tag 'Instrumentaal' hebben EN uit het jaar '1995' komen.
+* Als gebruiker wil ik geavanceerd kunnen filteren  
+   - AC: filters combineren; EN/OF/NOT werkt zichtbaar en voorspelbaar
 
 ### 7.3 Organiseren
 
-* "Als gebruiker wil ik mijn CD verzameling kunnen organiseren op locatie, zodat ik weet wat er in 'Doos 3' zit."
+* Als gebruiker wil ik mijn CD verzameling kunnen organiseren op locatie, zodat ik weet wat er in 'Doos 3' zit.
+* Als gebruiker wil ik een aangepast veld "Plank" invullen zodat ik weet waar de CD staat.
+* Als gebruiker wil ik fysieke locaties kunnen beheren  
+   - AC: locatielijst; items toewijzen; lijst per locatie sorteerbaar   
+* Als gebruiker wil ik een rapportage kunnen genereren welke de CD's sorteert op "Fysieke Locatie" en vervolgens op Artiest, zodat ik mijn kast in één keer kan ordenen.   
+* Als gebruiker wil ik een CD kunnen archiveren/verwijderen  
+   - AC: item verdwijnt uit standaardlijst, blijft terugvindbaar in “Archief”
+
 
 ---
 
@@ -194,13 +287,33 @@ Muziek-liefhebbers en verzamelaars met een thuisserver (HomeLab) en een vrij gro
 
 ### 8.1 Algemeen
 
-* **Mobile First:** Ontwerp begint bij het mobiele scherm. Desktop is een afgeleide.
-* **Tag Visualisatie:** Tags moeten duidelijk zichtbaar zijn als 'chips' of labels bij een album (bijv. gekleurde badgdes).
+#### Principes
+* **Mobile-first** Mobile-first, snelle interactie (grote knoppen, korte formulieren)  
+* **Progressive disclosure** “Progressive disclosure”: standaard simpel, advanced optioneel  
+* **Fouten** Fouten voorkomen: suggesties, auto-complete, duplicaatwaarschuwingen  
+* **Bewerken** Altijd “bewerken” vanaf detailpagina
+* **Tags** Tags moeten duidelijk zichtbaar zijn als 'chips' of labels bij een album (bijv. gekleurde badgdes).
+* **Performance:** Snelle laadtijden, trage animaties vermijden bij grote lijsten.
+* **Cover Centric:** In lijstweergaven is de cover het belangrijkste herkenningspunt.
+
+#### Kernschermen (v1)
+- Dashboard (totalen + snelle acties)  
+- Lijst (filter/sort/search)  
+- Detail (cover, metadata, tracks, locatie)  
+- Add flow (scan/handmatig)  
+- Rapporten (duplicaten, per locatie, etc.)  
+- Instellingen (lookup provider(s), export)
+  - (v2) Inloggen/auth (Google OAuth)
 
 ### 8.2 Taal
 
 * Nederlands.
-* Duidelijke terminologie (Gebruik "Tag" of "Label", kies er één en wees consistent).
+* Duidelijke terminologie kort en duidelijk, geen vakjargon (Gebruik "Tag" of "Label", kies er één en wees consistent).
+* Toegankelijkheid:
+  - voldoende contrast  
+  - grote tap-targets  
+  - labels + foutmeldingen die uitleggen *wat* en *hoe op te lossen*
+* WCAG 2.1 AA compliance (focus states, screenreader support).
 
 ---
 
@@ -208,47 +321,101 @@ Muziek-liefhebbers en verzamelaars met een thuisserver (HomeLab) en een vrij gro
 
 ### 9.1 Architectuur & stack
 
-* **Server (Backend):**
-* Python / FastAPI / SQLModel (SQLite).
-* AI: Pydantic-AI + Google Gemini.
-
+* **Server (Docker, Backend, thuisserver):**
+* Python / FastAPI / SQLModel (SQLite).   
+* `uv` voor dependency management, `.env` voor secrets.   
+* SQLite FTS5 voor full-text search (sterk aanbevolen)  
+* Migratie-tooling (Alembic of alternatief)  
+* Bestandsopslag voor covers + thumbnails  
+* AI: Pydantic-AI (v2) + Google Gemini (voor metadata verrijking of semantic search in latere fase).   
+* (v2) Authenticatie via Google OAuth (IDP). In v1 alvast rekening houden met: gebruikers-/sessiemodel, auth-middleware, en scopes/roles (al is er maar 1 gebruiker).
+* Python-Discogs-client (of MusicBrainz).
 
 * **Frontend:**
-* HTML/JS (Vue of React aanbevolen).
+* HTML/JS (Vue of React aanbevolen, *Suggestie: Vue.js is vaak lichter en makkelijker voor single-developer projecten.*).
 * Framework: Tailwind CSS (voor eenvoudige mobile-first styling).
-* Geen harde PWA-eis, maar wel responsive.
-
+* Responsive.
+* Camera/barcode: Web APIs (waar beschikbaar)
 
 
 ### 9.2 Data & modellen
 
-* **Tabellen (Conceptueel):**
-* `Album`
-* `Artist`
-* `Track`
-* `Tag` (Naam, Kleur)
-* `AlbumTagLink` (Koppeltabel voor Many-to-Many relatie tussen Album en Tag).
+* **Tabellen (Conceptueel, globaal):**
+- Album(id, title, artists, year, genre, type, upc_ean, catalog_no, spars, notes, created_at, updated_at, archived_at, tag)  
+- Artist(id, name, tag)  
+- ReleaseArtist(release_id, artist_id, role/order)  
+- Track(id, release_id, track_no, title, duration?)  
+- Location(id, storage_type, name, section, shelf, position)  
+- Cover(id, release_id, kind(front/back/inside), path, checksum, width, height, bytes)
+* Tag (Naam, Kleur)
+* AlbumTagLink (Koppeltabel voor Many-to-Many relatie tussen Album en Tag).
+* Genre (id, name)
 
-
+### 9.3 API (globaal)
+- /releases (list, create)  
+- /releases/{id} (read, update, archive/delete)  
+- /search (quick)  
+- /advanced-search (query builder payload)  
+- /lookup (barcode → provider results)  
+- /export (create bundle)  
+- /import (restore bundle)  
+- /locations (CRUD)  
+- /stats (dashboards)
 
 ### 9.4 Security & Deployment
 
 * Docker container.
-* Toegang via Reverse Proxy (bijv. Traefik of Nginx Proxy Manager) op het thuisnetwerk.
+* Intern toegankelijk binnen LAN  
+* Extern toegang via Reverse Proxy (bijv. Traefik of Nginx Proxy Manager) op het thuisnetwerk.
+* HTTPS via reverse proxy (bijv. Let’s Encrypt) aanbevolen  
+* Back-ups lokaal; geen cloud afhankelijkheid  
+* Logging met minimale privacy-impact (geen gevoelige data)
+*   OAuth2 (Google) optioneel, anders een simpele username/password flow (HTTP Basic Auth of JWT). Omdat het thuis is, is basic auth over HTTPS vaak voldoende.
+*   Data verlaat nooit de server (behalve voor Discogs API lookups, logs niet naar buiten).
 
 ---
 
 ## 10. Rapportage & Logging
 
+### 10.1 Rapportage (v1)
 * Loggen van import-acties.
 * Foutmeldingen bij mislukte API calls (MusicBrainz).
+* Duplicaten (exact + later fuzzy)  
+* Per artiest / per jaar / per type / per locatie  
+* Export CSV (P1) / PDF (P2)
+
+### 10.2 Logging
+* API errors, DB errors, lookup errors  
+* Export/import acties (wie/wanneer + resultaat)  
+* Optioneel audit log voor mutaties
+* Logt API requests (als optioneel aanstaat i.v.m. privacy).
+* Logt fouten bij Discogs API calls.
+* Logt Backup acties.
 
 ---
 
 ## 11. Risico’s & Aannames
 
-* **Aanname:** De gebruiker zorgt zelf voor toegang tot de server van buitenaf (via VPN of Proxy) als dat gewenst is.
-* **Risico:** Wildgroei aan tags. *Mitigatie: Autocomplete voorstellen bij het intypen van tags.*
+### 11.1 Risico’s
+* Online lookup bronnen veranderen of limiteren (rate limits, API keys)  
+  - Oplossing: Caching in SQLite en requests beperken in UI.
+* Barcode scan werkt niet op alle devices/browsers even goed  
+* Duplicaten zijn soms “bijna gelijk” (fuzzy matching vereist)  
+* Cover-opslag kan veel ruimte innemen → thumbnails + limieten nodig
+* Wildgroei aan tags. *Mitigatie: Autocomplete voorstellen bij het intypen van tags.*
+
+### 11.2 Aannames
+* De gebruiker zorgt zelf voor toegang tot de server van buitenaf (via VPN of Proxy) als dat gewenst is.
+* Thuisserver is betrouwbaar en draait 24/7 of vaak genoeg  
+* Gebruiker zit meestal op hetzelfde netwerk als server  
+* Moderne browser beschikbaar op mobiel/tablet
+
+### 11.3 Afhankelijkheden
+* Browser support camera API’s  
+* Eventuele externe data providers (optioneel)
+*  Discogs API account (Client ID/Secret).
+*  Python packages ecosystem.
+*  Github/Docker voor updates.
 
 ---
 
@@ -256,15 +423,33 @@ Muziek-liefhebbers en verzamelaars met een thuisserver (HomeLab) en een vrij gro
 
 ### Fase 1 (MVP)
 
-* Opzet Database & Backend.
+* Opzet Datamodel + CRUD + locaties.
+* Snelzoeken + FTS  
+* Handmatig toevoegen + basis UI (mobile-first)  
 * Implementatie Tagging systeem (Backend + Frontend).
 * Basis UI voor mobiel.
-* Connectie MusicBrainz.
+* Covers weergave en upload.
+* Export/restore  
+* Deployment: LAN-first + Nginx reverse proxy voor externe toegang
 
 ### Fase 2
+* Barcode scanner integratie + lookup + import covers.
+* Integratie Discogs API (Zoeken op Barcode/Artiest).
+* Geavanceerd zoeken (Filters).
+* Duplicaatdetectie  
+* Rapporten (duplicaten, per locatie)  
+* Performance tuning
 
-* Barcode scanner integratie.
+### Fase 3 – v2 ideeën
+- Authenticatie (Google OAuth als IDP) + basis autorisatie  
+- Labels/QR print  
+- Fuzzy duplicates + edition management  
+- Bulk actions + CSV/PDF exports
+
+### Fase 4
+* Integratie Gemini AI voor "Vraag & Antwoord" over de collectie.
 * AI functionaliteiten (Slim zoeken).
+* Dashboard met grafieken.
 
 ---
 
