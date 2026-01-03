@@ -1,0 +1,17 @@
+# Logs
+*.log
+
+# Database
+*.db
+
+# Virtual Environment
+.venv/
+
+# Node modules
+node_modules/
+
+# OS files
+.DS_Store
+
+# Build files
+frontend/dist/
