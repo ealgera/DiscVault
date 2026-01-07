@@ -78,6 +78,7 @@ class AlbumBase(SQLModel):
     upc_ean: Optional[str] = Field(default=None, index=True)
     catalog_no: Optional[str] = None
     spars_code: Optional[str] = None
+    cover_url: Optional[str] = None
     media_type: str = "CD"
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -6,7 +6,7 @@ from typing import List
 
 from .database import create_db_and_tables, get_session
 from .models import Album, Artist, Tag, Location, AlbumRead
-from . import crud
+from . import crud, services
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -74,6 +74,14 @@ def create_location(location: Location, session: Session = Depends(get_session))
 @app.get("/locations/", response_model=List[Location])
 def read_locations(session: Session = Depends(get_session)):
     return crud.get_locations(session=session)
+
+# --- External Lookup ---
+@app.get("/lookup/{barcode}")
+async def lookup_barcode(barcode: str):
+    result = await services.lookup_musicbrainz_by_barcode(barcode)
+    if not result:
+        raise HTTPException(status_code=404, detail="Barcode not found in MusicBrainz")
+    return result
 
 # --- Relationships ---
 @app.post("/albums/{album_id}/artists/{artist_id}")
