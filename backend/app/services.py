@@ -29,9 +29,9 @@ async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]
         mbid = release.get("id")
         
         # Check Cover Art Archive (Optimistic check, or just construct URL)
-        # We can try to construct the URL directly. If it doesn't exist, the frontend will get 404 on the image, which is fine for now.
-        # Ideally we check existence, but for speed we just return the potential URL.
-        cover_url = f"https://coverartarchive.org/release/{mbid}/front" if mbid else None
+        # We use the 'front-500' thumbnail for better performance (original can be huge)
+        # Or even 'front-250' if we want it super fast for mobile lists.
+        cover_url = f"https://coverartarchive.org/release/{mbid}/front-250" if mbid else None
 
         # Map MB data to our internal format
         result = {

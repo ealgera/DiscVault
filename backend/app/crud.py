@@ -1,6 +1,17 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink
 from typing import List, Optional
+
+# --- Stats ---
+def get_stats(session: Session):
+    album_count = session.exec(select(func.count(Album.id))).one()
+    artist_count = session.exec(select(func.count(Artist.id))).one()
+    genre_count = session.exec(select(func.count(Tag.id))).one() # We use tags as genres for now or actual genre table
+    return {
+        "albums": album_count,
+        "artists": artist_count,
+        "genres": genre_count
+    }
 
 # --- Albums ---
 def create_album(session: Session, album: Album) -> Album:

@@ -17,10 +17,17 @@ interface Album {
 
 const albums = ref<Album[]>([])
 const loading = ref(true)
+const searchQuery = ref('')
+let searchTimeout: any = null
 
-onMounted(async () => {
+async function fetchAlbums(query = '') {
+  loading.value = true
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/albums/`)
+    const url = query 
+      ? `${import.meta.env.VITE_API_URL}/search?q=${encodeURIComponent(query)}`
+      : `${import.meta.env.VITE_API_URL}/albums/`
+    
+    const response = await fetch(url)
     if (response.ok) {
         albums.value = await response.json()
     }
@@ -29,7 +36,16 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+function handleSearch() {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    fetchAlbums(searchQuery.value)
+  }, 300) // 300ms debounce
+}
+
+onMounted(() => fetchAlbums())
 </script>
 
 <template>
@@ -39,19 +55,25 @@ onMounted(async () => {
         <button class="bg-gray-200 p-2 rounded">Filter</button>
     </div>
     
-    <!-- Zoekbalk placeholder -->
-    <input type="search" placeholder="Zoek op titel, artiest..." class="w-full p-3 mb-4 border rounded-lg bg-gray-50" />
+    <!-- Zoekbalk -->
+    <input 
+      v-model="searchQuery"
+      @input="handleSearch"
+      type="search" 
+      placeholder="Zoek op titel, artiest..." 
+      class="w-full p-3 mb-4 border rounded-lg bg-white dark:bg-surface-dark dark:border-slate-700 dark:text-white border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary" 
+    />
 
     <div v-if="loading">Laden...</div>
     <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div v-for="album in albums" :key="album.id" class="bg-white p-4 rounded-lg shadow flex items-center space-x-4">
-        <div class="w-16 h-16 bg-gray-200 rounded flex-shrink-0 overflow-hidden relative">
+      <div v-for="album in albums" :key="album.id" class="bg-white dark:bg-surface-dark border border-gray-100 dark:border-slate-800 p-4 rounded-lg shadow-sm flex items-center space-x-4">
+        <div class="w-16 h-16 bg-gray-200 dark:bg-slate-800 rounded flex-shrink-0 overflow-hidden relative">
              <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover" alt="Cover">
              <span v-else class="material-symbols-outlined absolute inset-0 m-auto w-6 h-6 text-gray-400">album</span>
         </div> 
-        <div>
-            <h2 class="font-bold text-lg">{{ album.title }}</h2>
-            <p class="text-sm text-gray-600" v-for="artist in album.artists" :key="artist.id">{{ artist.name }}</p>
+        <div class="min-w-0"> <!-- min-w-0 zorgt dat text truncate werkt in flex -->
+            <h2 class="font-bold text-lg text-slate-900 dark:text-white truncate">{{ album.title }}</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 truncate" v-for="artist in album.artists" :key="artist.id">{{ artist.name }}</p>
         </div>
       </div>
     </div>

@@ -1,16 +1,41 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from sqlmodel import Session
+from sqlmodel import Session, select, text
 from typing import List
 
-from .database import create_db_and_tables, get_session
+from .database import create_db_and_tables, get_session, engine
 from .models import Album, Artist, Tag, Location, AlbumRead
 from . import crud, services
+
+def init_fts(session: Session):
+    # Create FTS5 virtual table for albums if it doesn't exist
+    session.exec(text("CREATE VIRTUAL TABLE IF NOT EXISTS album_search USING fts5(title, notes, content='album', content_rowid='id');"))
+    
+    # Triggers to keep FTS index in sync
+    session.exec(text("""
+    CREATE TRIGGER IF NOT EXISTS album_ai AFTER INSERT ON album BEGIN
+      INSERT INTO album_search(rowid, title, notes) VALUES (new.id, new.title, new.notes);
+    END;
+    """))
+    session.exec(text("""
+    CREATE TRIGGER IF NOT EXISTS album_ad AFTER DELETE ON album BEGIN
+      INSERT INTO album_search(album_search, rowid, title, notes) VALUES('delete', old.id, old.title, old.notes);
+    END;
+    """))
+    session.exec(text("""
+    CREATE TRIGGER IF NOT EXISTS album_au AFTER UPDATE ON album BEGIN
+      INSERT INTO album_search(album_search, rowid, title, notes) VALUES('delete', old.id, old.title, old.notes);
+      INSERT INTO album_search(rowid, title, notes) VALUES (new.id, new.title, new.notes);
+    END;
+    """))
+    session.commit()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    with Session(engine) as session:
+        init_fts(session)
     yield
 
 app = FastAPI(title="DiscVault API", lifespan=lifespan)
@@ -31,6 +56,25 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/stats")
+def read_stats(session: Session = Depends(get_session)):
+    return crud.get_stats(session)
+
+@app.get("/search", response_model=List[AlbumRead])
+def search_albums(q: str, session: Session = Depends(get_session)):
+    # Using the FTS5 table for searching with prefix matching (*)
+    query = text("SELECT rowid FROM album_search WHERE album_search MATCH :q")
+    # We add * to the query for prefix matching (e.g. "pin" matches "pink")
+    results = session.execute(query, {"q": f"{q}*"}).all()
+    
+    if not results:
+        return []
+    
+    ids = [r[0] for r in results]
+    # Fetch the full objects for the IDs found
+    albums = session.exec(select(Album).where(Album.id.in_(ids))).all()
+    return albums
 
 # --- Album Endpoints ---
 @app.post("/albums/", response_model=Album)
