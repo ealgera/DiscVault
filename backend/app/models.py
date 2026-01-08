@@ -2,14 +2,16 @@ from datetime import datetime
 from typing import Optional, List
 from sqlmodel import Field, SQLModel, Relationship
 
-# --- Link Tables ---
+# Link tables
 class AlbumTagLink(SQLModel, table=True):
-    album_id: Optional[int] = Field(default=None, foreign_key="album.id", primary_key=True)
-    tag_id: Optional[int] = Field(default=None, foreign_key="tag.id", primary_key=True)
+    __tablename__ = "album_tag_links"
+    album_id: Optional[int] = Field(default=None, foreign_key="albums.id", primary_key=True)
+    tag_id: Optional[int] = Field(default=None, foreign_key="tags.id", primary_key=True)
 
 class AlbumArtistLink(SQLModel, table=True):
-    album_id: Optional[int] = Field(default=None, foreign_key="album.id", primary_key=True)
-    artist_id: Optional[int] = Field(default=None, foreign_key="artist.id", primary_key=True)
+    __tablename__ = "album_artist_links"
+    album_id: Optional[int] = Field(default=None, foreign_key="albums.id", primary_key=True)
+    artist_id: Optional[int] = Field(default=None, foreign_key="artists.id", primary_key=True)
     role: Optional[str] = "Main"
 
 # --- Genre ---
@@ -17,6 +19,7 @@ class GenreBase(SQLModel):
     name: str = Field(unique=True)
 
 class Genre(GenreBase, table=True):
+    __tablename__ = "genres"
     id: Optional[int] = Field(default=None, primary_key=True)
 
 # --- Tag ---
@@ -25,6 +28,7 @@ class TagBase(SQLModel):
     color: str = "#CCCCCC"
 
 class Tag(TagBase, table=True):
+    __tablename__ = "tags"
     id: Optional[int] = Field(default=None, primary_key=True)
     albums: List["Album"] = Relationship(back_populates="tags", link_model=AlbumTagLink)
 
@@ -36,6 +40,7 @@ class ArtistBase(SQLModel):
     name: str = Field(index=True)
 
 class Artist(ArtistBase, table=True):
+    __tablename__ = "artists"
     id: Optional[int] = Field(default=None, primary_key=True)
     albums: List["Album"] = Relationship(back_populates="artists", link_model=AlbumArtistLink)
 
@@ -51,6 +56,7 @@ class LocationBase(SQLModel):
     position: Optional[str] = None
 
 class Location(LocationBase, table=True):
+    __tablename__ = "locations"
     id: Optional[int] = Field(default=None, primary_key=True)
     albums: List["Album"] = Relationship(back_populates="location")
 
@@ -64,8 +70,9 @@ class TrackBase(SQLModel):
     duration: Optional[str] = None
 
 class Track(TrackBase, table=True):
+    __tablename__ = "tracks"
     id: Optional[int] = Field(default=None, primary_key=True)
-    album_id: int = Field(foreign_key="album.id")
+    album_id: int = Field(foreign_key="albums.id")
     album: "Album" = Relationship(back_populates="tracks")
 
 class TrackRead(TrackBase):
@@ -84,16 +91,29 @@ class AlbumBase(SQLModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     archived_at: Optional[datetime] = None
-    genre_id: Optional[int] = Field(default=None, foreign_key="genre.id")
-    location_id: Optional[int] = Field(default=None, foreign_key="location.id")
+    genre_id: Optional[int] = Field(default=None, foreign_key="genres.id")
+    location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
 
 class Album(AlbumBase, table=True):
+    __tablename__ = "albums"
     id: Optional[int] = Field(default=None, primary_key=True)
     
     location: Optional[Location] = Relationship(back_populates="albums")
     artists: List[Artist] = Relationship(back_populates="albums", link_model=AlbumArtistLink)
     tags: List[Tag] = Relationship(back_populates="albums", link_model=AlbumTagLink)
     tracks: List[Track] = Relationship(back_populates="album")
+
+# --- Create Models (DTOs) ---
+class AlbumCreate(AlbumBase):
+    tag_ids: List[int] = []
+    artist_names: List[str] = []
+
+class AlbumUpdate(SQLModel):
+    title: Optional[str] = None
+    year: Optional[int] = None
+    notes: Optional[str] = None
+    location_id: Optional[int] = None
+    tag_ids: Optional[List[int]] = None
 
 # --- Read Models (DTOs) ---
 class AlbumRead(AlbumBase):

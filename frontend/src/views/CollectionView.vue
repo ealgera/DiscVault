@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 // Tijdelijk de logic van HomeView hierheen verplaatst
 interface Artist {
@@ -45,6 +48,10 @@ function handleSearch() {
   }, 300) // 300ms debounce
 }
 
+function goToDetail(id: number) {
+    router.push(`/albums/${id}`)
+}
+
 onMounted(() => fetchAlbums())
 </script>
 
@@ -66,7 +73,12 @@ onMounted(() => fetchAlbums())
 
     <div v-if="loading">Laden...</div>
     <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div v-for="album in albums" :key="album.id" class="bg-white dark:bg-surface-dark border border-gray-100 dark:border-slate-800 p-4 rounded-lg shadow-sm flex items-center space-x-4">
+      <div 
+        v-for="album in albums" 
+        :key="album.id" 
+        @click="goToDetail(album.id)"
+        class="bg-white dark:bg-surface-dark border border-gray-100 dark:border-slate-800 p-4 rounded-lg shadow-sm flex items-center space-x-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+      >
         <div class="w-16 h-16 bg-gray-200 dark:bg-slate-800 rounded flex-shrink-0 overflow-hidden relative">
              <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover" alt="Cover">
              <span v-else class="material-symbols-outlined absolute inset-0 m-auto w-6 h-6 text-gray-400">album</span>

@@ -1,5 +1,5 @@
 from sqlmodel import Session, select, func
-from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink
+from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink, AlbumCreate, AlbumUpdate
 from typing import List, Optional
 
 # --- Stats ---
@@ -14,11 +14,57 @@ def get_stats(session: Session):
     }
 
 # --- Albums ---
-def create_album(session: Session, album: Album) -> Album:
-    session.add(album)
+def create_album(session: Session, album_create: AlbumCreate) -> Album:
+    # Convert AlbumCreate DTO to Album table model
+    db_album = Album.model_validate(album_create)
+    
+    # Handle Tags
+    if album_create.tag_ids:
+        tags = session.exec(select(Tag).where(Tag.id.in_(album_create.tag_ids))).all()
+        db_album.tags = tags
+
+    # Handle Artists
+    if album_create.artist_names:
+        artists = []
+        for name in album_create.artist_names:
+            # Check if artist exists
+            artist = session.exec(select(Artist).where(Artist.name == name)).first()
+            if not artist:
+                # Create new artist
+                artist = Artist(name=name)
+                session.add(artist)
+                session.commit()
+                session.refresh(artist)
+            artists.append(artist)
+        db_album.artists = artists
+
+    session.add(db_album)
     session.commit()
-    session.refresh(album)
-    return album
+    session.refresh(db_album)
+    return db_album
+
+def update_album(session: Session, album_id: int, album_update: AlbumUpdate) -> Optional[Album]:
+    db_album = session.get(Album, album_id)
+    if not db_album:
+        return None
+    
+    update_data = album_update.model_dump(exclude_unset=True)
+    
+    # Handle Tags separately
+    if "tag_ids" in update_data:
+        tag_ids = update_data.pop("tag_ids")
+        if tag_ids is not None:
+            tags = session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()
+            db_album.tags = tags
+            
+    # Update other fields
+    for key, value in update_data.items():
+        setattr(db_album, key, value)
+        
+    session.add(db_album)
+    session.commit()
+    session.refresh(db_album)
+    return db_album
 
 def get_albums(session: Session, offset: int = 0, limit: int = 100) -> List[Album]:
     return session.exec(select(Album).offset(offset).limit(limit)).all()
@@ -46,12 +92,43 @@ def create_tag(session: Session, tag: Tag) -> Tag:
 def get_tags(session: Session) -> List[Tag]:
     return session.exec(select(Tag)).all()
 
+def update_tag(session: Session, tag_id: int, tag_data: Tag) -> Optional[Tag]:
+    db_tag = session.get(Tag, tag_id)
+    if not db_tag:
+        return None
+    
+    tag_data_dict = tag_data.model_dump(exclude_unset=True)
+    for key, value in tag_data_dict.items():
+        setattr(db_tag, key, value)
+    
+    session.add(db_tag)
+    session.commit()
+    session.refresh(db_tag)
+    return db_tag
+
 # --- Locations ---
 def create_location(session: Session, location: Location) -> Location:
     session.add(location)
     session.commit()
     session.refresh(location)
     return location
+
+def get_location(session: Session, location_id: int) -> Optional[Location]:
+    return session.get(Location, location_id)
+
+def update_location(session: Session, location_id: int, location_data: Location) -> Optional[Location]:
+    db_location = session.get(Location, location_id)
+    if not db_location:
+        return None
+    
+    location_data_dict = location_data.model_dump(exclude_unset=True)
+    for key, value in location_data_dict.items():
+        setattr(db_location, key, value)
+    
+    session.add(db_location)
+    session.commit()
+    session.refresh(db_location)
+    return db_location
 
 def get_locations(session: Session) -> List[Location]:
     return session.exec(select(Location)).all()

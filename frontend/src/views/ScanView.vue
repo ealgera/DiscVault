@@ -8,12 +8,41 @@ const manualCode = ref('')
 const loading = ref(false)
 const error = ref('')
 const albumData = ref<any>(null)
+const locations = ref<any[]>([])
+const tags = ref<any[]>([])
+const selectedLocationId = ref<number | null>(null)
+const selectedTagIds = ref<number[]>([])
+
+async function fetchLocationsAndTags() {
+    try {
+        const [locRes, tagRes] = await Promise.all([
+            fetch(`${import.meta.env.VITE_API_URL}/locations/`),
+            fetch(`${import.meta.env.VITE_API_URL}/tags/`)
+        ])
+
+        if (locRes.ok) {
+            locations.value = await locRes.json()
+            if (locations.value.length > 0 && !selectedLocationId.value) {
+                // optional default
+            }
+        }
+        if (tagRes.ok) {
+            tags.value = await tagRes.json()
+        }
+    } catch (e) {
+        console.error("Failed to fetch metadata", e)
+    }
+}
 
 async function startLookup(code: string) {
     loading.value = true
     error.value = ''
     albumData.value = null
     scannedCode.value = code
+    selectedTagIds.value = [] // Reset tags
+    
+    // Also fetch latest locations and tags
+    await fetchLocationsAndTags()
     
     try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/lookup/${code}`)
@@ -53,7 +82,10 @@ async function saveAlbum() {
                 year: albumData.value.year,
                 upc_ean: scannedCode.value,
                 catalog_no: albumData.value.catalog_no,
-                cover_url: albumData.value.cover_url
+                cover_url: albumData.value.cover_url,
+                location_id: selectedLocationId.value,
+                tag_ids: selectedTagIds.value,
+                artist_names: albumData.value.artists
             })
         })
         
@@ -149,20 +181,36 @@ function reset() {
             <div class="flex flex-col gap-4">
                 <h3 class="font-bold text-slate-900 dark:text-white">Details toevoegen</h3>
                 <div class="flex flex-col gap-3">
-                    <button class="flex items-center justify-between p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-700">
-                        <div class="flex items-center gap-3">
-                            <span class="material-symbols-outlined text-slate-400">location_on</span>
-                            <span class="font-medium">Locatie selecteren</span>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 uppercase ml-1">Fysieke Locatie</label>
+                        <select v-model="selectedLocationId" class="w-full p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-slate-700 dark:text-white focus:ring-primary focus:border-primary">
+                            <option :value="null">Geen locatie geselecteerd</option>
+                            <option v-for="loc in locations" :key="loc.id" :value="loc.id">
+                                {{ loc.name }} ({{ loc.storage_type }}{{ loc.shelf ? ' - ' + loc.shelf : '' }})
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase ml-1">Tags</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button 
+                                v-for="tag in tags" 
+                                :key="tag.id"
+                                @click="selectedTagIds.includes(tag.id) 
+                                    ? selectedTagIds = selectedTagIds.filter(id => id !== tag.id)
+                                    : selectedTagIds.push(tag.id)"
+                                class="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                                :class="selectedTagIds.includes(tag.id) 
+                                    ? 'bg-primary text-white border-primary shadow-sm' 
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
+                                :style="selectedTagIds.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}"
+                            >
+                                {{ tag.name }}
+                            </button>
+                            <span v-if="tags.length === 0" class="text-sm text-slate-400 italic px-2">Geen tags aangemaakt</span>
                         </div>
-                        <span class="material-symbols-outlined text-slate-400">chevron_right</span>
-                    </button>
-                    <button class="flex items-center justify-between p-4 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-700">
-                        <div class="flex items-center gap-3">
-                            <span class="material-symbols-outlined text-slate-400">label</span>
-                            <span class="font-medium">Tags toevoegen</span>
-                        </div>
-                        <span class="material-symbols-outlined text-slate-400">chevron_right</span>
-                    </button>
+                    </div>
                 </div>
             </div>
 

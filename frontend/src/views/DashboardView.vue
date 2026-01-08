@@ -114,7 +114,12 @@ onMounted(async () => {
       </div>
       
       <div class="flex flex-col gap-3">
-        <div v-for="album in recentAlbums" :key="album.id" class="group flex items-center gap-4 rounded-xl bg-white dark:bg-surface-dark p-3 shadow-sm border border-slate-100 dark:border-slate-800 active:scale-[0.99] transition-transform">
+        <div 
+            v-for="album in recentAlbums" 
+            :key="album.id" 
+            @click="$router.push(`/albums/${album.id}`)"
+            class="group flex items-center gap-4 rounded-xl bg-white dark:bg-surface-dark p-3 shadow-sm border border-slate-100 dark:border-slate-800 active:scale-[0.99] transition-transform cursor-pointer"
+        >
           <!-- Cover -->
           <div class="relative size-16 shrink-0 overflow-hidden rounded-lg shadow-sm bg-gray-200 flex items-center justify-center">
             <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover" alt="Cover">

@@ -3,6 +3,8 @@ import DashboardView from '../views/DashboardView.vue'
 import CollectionView from '../views/CollectionView.vue'
 import ScanView from '../views/ScanView.vue'
 import LocationView from '../views/LocationView.vue'
+import TagView from '../views/TagView.vue'
+import AlbumDetailView from '../views/AlbumDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,6 +20,11 @@ const router = createRouter({
       component: CollectionView,
     },
     {
+      path: '/albums/:id',
+      name: 'album-detail',
+      component: AlbumDetailView,
+    },
+    {
       path: '/scan',
       name: 'scan',
       component: ScanView,
@@ -26,6 +33,11 @@ const router = createRouter({
       path: '/locations',
       name: 'locations',
       component: LocationView,
+    },
+    {
+      path: '/tags',
+      name: 'tags',
+      component: TagView,
     },
   ],
 })
