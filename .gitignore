@@ -4,6 +4,9 @@
 # Database
 *.db
 
+# Pictures
+*.png
+
 # Virtual Environment
 .venv/
 
@@ -13,5 +16,11 @@ node_modules/
 # OS files
 .DS_Store
 
+#Python files
+__pycache__
+
 # Build files
 frontend/dist/
+
+#Overig
+*.old
