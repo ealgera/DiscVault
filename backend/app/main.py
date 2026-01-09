@@ -5,26 +5,26 @@ from sqlmodel import Session, select, text, func
 from typing import List
 
 from .database import create_db_and_tables, get_session, engine
-from .models import Album, Artist, Tag, Location, AlbumRead, AlbumCreate, AlbumUpdate, AlbumArtistLink
+from .models import Album, Artist, Tag, Location, AlbumRead, AlbumCreate, AlbumUpdate, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, Genre, GenreRead, TagRead
 from . import crud, services
 
 def init_fts(session: Session):
     # Create FTS5 virtual table for albums if it doesn't exist
-    session.exec(text("CREATE VIRTUAL TABLE IF NOT EXISTS album_search USING fts5(title, notes, content='album', content_rowid='id');"))
+    session.exec(text("CREATE VIRTUAL TABLE IF NOT EXISTS album_search USING fts5(title, notes, content='albums', content_rowid='id');"))
     
     # Triggers to keep FTS index in sync
     session.exec(text("""
-    CREATE TRIGGER IF NOT EXISTS album_ai AFTER INSERT ON album BEGIN
+    CREATE TRIGGER IF NOT EXISTS album_ai AFTER INSERT ON albums BEGIN
       INSERT INTO album_search(rowid, title, notes) VALUES (new.id, new.title, new.notes);
     END;
     """))
     session.exec(text("""
-    CREATE TRIGGER IF NOT EXISTS album_ad AFTER DELETE ON album BEGIN
+    CREATE TRIGGER IF NOT EXISTS album_ad AFTER DELETE ON albums BEGIN
       INSERT INTO album_search(album_search, rowid, title, notes) VALUES('delete', old.id, old.title, old.notes);
     END;
     """))
     session.exec(text("""
-    CREATE TRIGGER IF NOT EXISTS album_au AFTER UPDATE ON album BEGIN
+    CREATE TRIGGER IF NOT EXISTS album_au AFTER UPDATE ON albums BEGIN
       INSERT INTO album_search(album_search, rowid, title, notes) VALUES('delete', old.id, old.title, old.notes);
       INSERT INTO album_search(rowid, title, notes) VALUES (new.id, new.title, new.notes);
     END;
@@ -74,23 +74,36 @@ def read_stats(session: Session = Depends(get_session)):
     return crud.get_stats(session)
 
 @app.get("/search", response_model=List[AlbumRead])
-def search_albums(q: str, session: Session = Depends(get_session)):
+def search_albums(q: str, filter: str = "all", session: Session = Depends(get_session)):
     q_lower = q.lower()
     
-    # 1. Search by Title (case-insensitive contains)
-    title_results = session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
+    results = []
     
-    # 2. Search by Artist Name (case-insensitive contains)
-    artist_results = session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
+    # 1. Search by Title
+    if filter in ["all", "title"]:
+        results += session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
     
-    # 3. Search by Notes (case-insensitive contains)
-    notes_results = session.exec(select(Album).where(func.lower(Album.notes).contains(q_lower))).all()
+    # 2. Search by Artist Name
+    if filter in ["all", "artist"]:
+        results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
+    
+    # 3. Search by Notes
+    if filter == "all": # Notes usually only in global search
+        results += session.exec(select(Album).where(func.lower(Album.notes).contains(q_lower))).all()
+
+    # 4. Search by Genre
+    if filter in ["all", "genre"]:
+        results += session.exec(select(Album).join(AlbumGenreLink).join(Genre).where(func.lower(Genre.name).contains(q_lower))).all()
+
+    # 5. Search by Tag
+    if filter in ["all", "tag"]:
+        results += session.exec(select(Album).join(AlbumTagLink).join(Tag).where(func.lower(Tag.name).contains(q_lower))).all()
 
     # Combine and Deduplicate (by ID)
     seen_ids = set()
     combined_results = []
     
-    for album in title_results + artist_results + notes_results:
+    for album in results:
         if album.id not in seen_ids:
             combined_results.append(album)
             seen_ids.add(album.id)
@@ -134,7 +147,7 @@ def read_artists(session: Session = Depends(get_session)):
 def create_tag(tag: Tag, session: Session = Depends(get_session)):
     return crud.create_tag(session=session, tag=tag)
 
-@app.get("/tags/", response_model=List[Tag])
+@app.get("/tags/", response_model=List[TagRead])
 def read_tags(session: Session = Depends(get_session)):
     return crud.get_tags(session=session)
 
@@ -144,6 +157,32 @@ def update_tag(tag_id: int, tag: Tag, session: Session = Depends(get_session)):
     if not updated_tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return updated_tag
+
+# --- Genre Endpoints ---
+@app.post("/genres/", response_model=Genre)
+def create_genre(genre: Genre, session: Session = Depends(get_session)):
+    session.add(genre)
+    session.commit()
+    session.refresh(genre)
+    return genre
+
+@app.get("/genres/", response_model=List[GenreRead])
+def read_genres(session: Session = Depends(get_session)):
+    return crud.get_genres(session=session)
+
+@app.put("/genres/{genre_id}", response_model=Genre)
+def update_genre(genre_id: int, genre: Genre, session: Session = Depends(get_session)):
+    updated_genre = crud.update_genre(session=session, genre_id=genre_id, genre_data=genre)
+    if not updated_genre:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    return updated_genre
+
+@app.delete("/genres/{genre_id}")
+def delete_genre(genre_id: int, session: Session = Depends(get_session)):
+    success = crud.delete_genre(session=session, genre_id=genre_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Genre not found")
+    return {"ok": True}
 
 # --- Location Endpoints ---
 @app.post("/locations/", response_model=Location)

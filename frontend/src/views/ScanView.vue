@@ -85,7 +85,8 @@ async function saveAlbum() {
                 cover_url: albumData.value.cover_url,
                 location_id: selectedLocationId.value,
                 tag_ids: selectedTagIds.value,
-                artist_names: albumData.value.artists
+                artist_names: albumData.value.artists,
+                genre_names: albumData.value.genres
             })
         })
         
@@ -174,6 +175,11 @@ function reset() {
                     <h2 class="text-xl font-bold leading-tight">{{ albumData.title }}</h2>
                     <p class="text-slate-500 font-medium">{{ albumData.artists.join(', ') }}</p>
                     <p class="text-sm text-slate-400 mt-1">{{ albumData.year }} • {{ albumData.catalog_no || 'Geen catalogusnr' }}</p>
+                    <div class="flex flex-wrap gap-1 mt-2">
+                        <span v-for="g in albumData.genres" :key="g" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500">
+                            {{ g }}
+                        </span>
+                    </div>
                 </div>
             </div>
 

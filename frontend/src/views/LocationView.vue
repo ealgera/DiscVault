@@ -164,23 +164,55 @@ onMounted(() => {
 
 
 
-    <!-- Sub Nav -->
+        <!-- Sub Nav -->
 
 
 
-    <div class="flex gap-4 mb-6 border-b border-slate-200 dark:border-slate-800">
+    
 
 
 
-        <router-link to="/locations" class="pb-2 text-sm font-bold border-b-2 border-primary text-primary">Locaties</router-link>
+        <div class="flex gap-4 mb-6 border-b border-slate-200 dark:border-slate-800">
 
 
 
-        <router-link to="/tags" class="pb-2 text-sm font-medium text-slate-400 hover:text-slate-600">Tags</router-link>
+    
 
 
 
-    </div>
+            <router-link to="/locations" class="pb-2 text-sm font-bold border-b-2 border-primary text-primary">Locaties</router-link>
+
+
+
+    
+
+
+
+            <router-link to="/tags" class="pb-2 text-sm font-medium text-slate-400 hover:text-slate-600">Tags</router-link>
+
+
+
+    
+
+
+
+            <router-link to="/genres" class="pb-2 text-sm font-medium text-slate-400 hover:text-slate-600">Genres</router-link>
+
+
+
+    
+
+
+
+        </div>
+
+
+
+    
+
+
+
+    
 
 
 

@@ -4,6 +4,7 @@ import CollectionView from '../views/CollectionView.vue'
 import ScanView from '../views/ScanView.vue'
 import LocationView from '../views/LocationView.vue'
 import TagView from '../views/TagView.vue'
+import GenreView from '../views/GenreView.vue'
 import AlbumDetailView from '../views/AlbumDetailView.vue'
 
 const router = createRouter({
@@ -38,6 +39,11 @@ const router = createRouter({
       path: '/tags',
       name: 'tags',
       component: TagView,
+    },
+    {
+      path: '/genres',
+      name: 'genres',
+      component: GenreView,
     },
   ],
 })

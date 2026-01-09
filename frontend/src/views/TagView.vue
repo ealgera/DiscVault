@@ -5,6 +5,7 @@ interface Tag {
   id: number
   name: string
   color: string
+  album_count?: number
 }
 
 const tags = ref<Tag[]>([])
@@ -91,6 +92,7 @@ onMounted(() => {
     <div class="flex gap-4 mb-6 border-b border-slate-200 dark:border-slate-800">
         <router-link to="/locations" class="pb-2 text-sm font-medium text-slate-400 hover:text-slate-600">Locaties</router-link>
         <router-link to="/tags" class="pb-2 text-sm font-bold border-b-2 border-primary text-primary">Tags</router-link>
+        <router-link to="/genres" class="pb-2 text-sm font-medium text-slate-400 hover:text-slate-600">Genres</router-link>
     </div>
 
     <div class="flex justify-between items-center mb-6">
@@ -146,7 +148,10 @@ onMounted(() => {
         <div v-for="tag in tags" :key="tag.id" @click="startEdit(tag)" class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition">
             <div class="flex items-center gap-3">
                 <div class="size-4 rounded-full" :style="{ backgroundColor: tag.color }"></div>
-                <h3 class="font-bold text-slate-900 dark:text-white">{{ tag.name }}</h3>
+                <h3 class="font-bold text-slate-900 dark:text-white">
+                    {{ tag.name }}
+                    <span class="text-xs text-slate-400 font-normal ml-2">({{ tag.album_count || 0 }})</span>
+                </h3>
             </div>
             <span 
                 class="px-2 py-0.5 rounded-full text-white text-[10px] font-bold"

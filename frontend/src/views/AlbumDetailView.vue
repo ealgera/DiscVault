@@ -14,6 +14,7 @@ const error = ref('')
 const isEditing = ref(false)
 const locations = ref<any[]>([])
 const allTags = ref<any[]>([])
+const allGenres = ref<any[]>([])
 const editForm = ref<any>({})
 
 async function fetchAlbum() {
@@ -32,6 +33,7 @@ async function fetchAlbum() {
                 catalog_no: data.catalog_no,
                 location_id: data.location?.id || null,
                 tag_ids: data.tags ? data.tags.map((t:any) => t.id) : [],
+                genre_ids: data.genres ? data.genres.map((g:any) => g.id) : [],
                 notes: data.notes
             }
         } else {
@@ -47,13 +49,17 @@ async function fetchAlbum() {
 
 async function fetchMetadata() {
     try {
-        const [locRes, tagRes] = await Promise.all([
+        const results = await Promise.allSettled([
             fetch(`${import.meta.env.VITE_API_URL}/locations/`),
-            fetch(`${import.meta.env.VITE_API_URL}/tags/`)
+            fetch(`${import.meta.env.VITE_API_URL}/tags/`),
+            fetch(`${import.meta.env.VITE_API_URL}/genres/`)
         ])
-        if (locRes.ok) locations.value = await locRes.json()
-        if (tagRes.ok) allTags.value = await tagRes.json()
-    } catch(e) { console.error(e) }
+        
+        if (results[0].status === 'fulfilled' && results[0].value.ok) locations.value = await results[0].value.json()
+        if (results[1].status === 'fulfilled' && results[1].value.ok) allTags.value = await results[1].value.json()
+        if (results[2].status === 'fulfilled' && results[2].value.ok) allGenres.value = await results[2].value.json()
+        
+    } catch(e) { console.error("Metadata fetch error:", e) }
 }
 
 async function saveChanges() {
@@ -234,7 +240,9 @@ onMounted(() => {
                     <span class="material-symbols-outlined text-[18px]">music_note</span>
                     <span class="text-xs font-bold uppercase">Genre</span>
                 </div>
-                <p class="font-bold text-slate-900 dark:text-white">Rock (Placeholder)</p>
+                <p class="font-bold text-slate-900 dark:text-white line-clamp-1">
+                    {{ album.genres && album.genres.length ? album.genres.map((g:any) => g.name).join(', ') : '-' }}
+                </p>
             </div>
 
             <div class="flex flex-col gap-1">
@@ -304,6 +312,20 @@ onMounted(() => {
                         :style="editForm.tag_ids.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}"
                     >
                         {{ tag.name }}
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Genres</label>
+                <div class="flex flex-wrap gap-2">
+                    <button 
+                        v-for="genre in allGenres" :key="genre.id"
+                        @click="editForm.genre_ids.includes(genre.id) ? editForm.genre_ids = editForm.genre_ids.filter((id:any) => id !== genre.id) : editForm.genre_ids.push(genre.id)"
+                        class="px-3 py-1 rounded-full text-xs font-bold border transition-all"
+                        :class="editForm.genre_ids.includes(genre.id) ? 'bg-primary text-white border-primary' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-600'"
+                    >
+                        {{ genre.name }}
                     </button>
                 </div>
             </div>

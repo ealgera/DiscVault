@@ -14,6 +14,11 @@ class AlbumArtistLink(SQLModel, table=True):
     artist_id: Optional[int] = Field(default=None, foreign_key="artists.id", primary_key=True)
     role: Optional[str] = "Main"
 
+class AlbumGenreLink(SQLModel, table=True):
+    __tablename__ = "album_genre_links"
+    album_id: Optional[int] = Field(default=None, foreign_key="albums.id", primary_key=True)
+    genre_id: Optional[int] = Field(default=None, foreign_key="genres.id", primary_key=True)
+
 # --- Genre ---
 class GenreBase(SQLModel):
     name: str = Field(unique=True)
@@ -21,6 +26,11 @@ class GenreBase(SQLModel):
 class Genre(GenreBase, table=True):
     __tablename__ = "genres"
     id: Optional[int] = Field(default=None, primary_key=True)
+    albums: List["Album"] = Relationship(back_populates="genres", link_model=AlbumGenreLink)
+
+class GenreRead(GenreBase):
+    id: int
+    album_count: int = 0
 
 # --- Tag ---
 class TagBase(SQLModel):
@@ -34,6 +44,7 @@ class Tag(TagBase, table=True):
 
 class TagRead(TagBase):
     id: int
+    album_count: int = 0
 
 # --- Artist ---
 class ArtistBase(SQLModel):
@@ -91,7 +102,6 @@ class AlbumBase(SQLModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     archived_at: Optional[datetime] = None
-    genre_id: Optional[int] = Field(default=None, foreign_key="genres.id")
     location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
 
 class Album(AlbumBase, table=True):
@@ -101,12 +111,14 @@ class Album(AlbumBase, table=True):
     location: Optional[Location] = Relationship(back_populates="albums")
     artists: List[Artist] = Relationship(back_populates="albums", link_model=AlbumArtistLink)
     tags: List[Tag] = Relationship(back_populates="albums", link_model=AlbumTagLink)
+    genres: List[Genre] = Relationship(back_populates="albums", link_model=AlbumGenreLink)
     tracks: List[Track] = Relationship(back_populates="album")
 
 # --- Create Models (DTOs) ---
 class AlbumCreate(AlbumBase):
     tag_ids: List[int] = []
     artist_names: List[str] = []
+    genre_names: List[str] = []
 
 class AlbumUpdate(SQLModel):
     title: Optional[str] = None
@@ -114,6 +126,7 @@ class AlbumUpdate(SQLModel):
     notes: Optional[str] = None
     location_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
+    genre_ids: Optional[List[int]] = None
 
 # --- Read Models (DTOs) ---
 class AlbumRead(AlbumBase):
@@ -121,4 +134,5 @@ class AlbumRead(AlbumBase):
     location: Optional[LocationRead] = None
     artists: List[ArtistRead] = []
     tags: List[TagRead] = []
+    genres: List[GenreRead] = []
     tracks: List[TrackRead] = []

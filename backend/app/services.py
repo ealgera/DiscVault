@@ -6,6 +6,7 @@ USER_AGENT = "DiscVault/0.1.0 ( https://github.com/eric/discvault )"
 
 async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]]:
     # we use 'barcode' filter in release query
+    # added inc=tags to get genres
     url = f"{MUSICBRAINZ_API}/release/"
     params = {
         "query": f"barcode:{barcode}",
@@ -28,6 +29,26 @@ async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]
         release = releases[0]
         mbid = release.get("id")
         
+        # To get better genres, we might need a separate call to the release-group or use tags from the release
+        # For simplicity, we check if tags are in the release object or fetch release-group tags
+        genres = []
+        release_group = release.get("release-group", {})
+        rg_id = release_group.get("id")
+        
+        if rg_id:
+            rg_url = f"{MUSICBRAINZ_API}/release-group/{rg_id}"
+            rg_params = {"inc": "tags", "fmt": "json"}
+            rg_res = await client.get(rg_url, params=rg_params, headers=headers)
+            if rg_res.status_code == 200:
+                rg_data = rg_res.json()
+                # Sort tags by count to get best genres
+                tags = rg_data.get("tags", [])
+                if tags:
+                    # Filter tags that are likely genres (MusicBrainz tags are messy)
+                    # We take top 3 tags as genres
+                    tags.sort(key=lambda x: x.get("count", 0), reverse=True)
+                    genres = [t.get("name").title() for t in tags[:5]]
+
         # Check Cover Art Archive (Optimistic check, or just construct URL)
         # We use the 'front-500' thumbnail for better performance (original can be huge)
         # Or even 'front-250' if we want it super fast for mobile lists.
@@ -38,6 +59,7 @@ async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]
             "title": release.get("title"),
             "year": int(release.get("date", "0")[:4]) if release.get("date") else None,
             "artists": [a.get("artist", {}).get("name") for a in release.get("artist-credit", [])],
+            "genres": genres,
             "barcode": barcode,
             "mbid": mbid,
             "catalog_no": release.get("label-info", [{}])[0].get("catalog-number") if release.get("label-info") else None,

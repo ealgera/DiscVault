@@ -1,12 +1,12 @@
-from sqlmodel import Session, select, func
-from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink, AlbumCreate, AlbumUpdate
+from sqlmodel import Session, select, func, text
+from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, AlbumCreate, AlbumUpdate, Genre
 from typing import List, Optional
 
 # --- Stats ---
 def get_stats(session: Session):
     album_count = session.exec(select(func.count(Album.id))).one()
     artist_count = session.exec(select(func.count(Artist.id))).one()
-    genre_count = session.exec(select(func.count(Tag.id))).one() # We use tags as genres for now or actual genre table
+    genre_count = session.exec(select(func.count(Genre.id))).one()
     return {
         "albums": album_count,
         "artists": artist_count,
@@ -27,16 +27,27 @@ def create_album(session: Session, album_create: AlbumCreate) -> Album:
     if album_create.artist_names:
         artists = []
         for name in album_create.artist_names:
-            # Check if artist exists
             artist = session.exec(select(Artist).where(Artist.name == name)).first()
             if not artist:
-                # Create new artist
                 artist = Artist(name=name)
                 session.add(artist)
                 session.commit()
                 session.refresh(artist)
             artists.append(artist)
         db_album.artists = artists
+
+    # Handle Genres
+    if album_create.genre_names:
+        genres = []
+        for name in album_create.genre_names:
+            genre = session.exec(select(Genre).where(Genre.name == name)).first()
+            if not genre:
+                genre = Genre(name=name)
+                session.add(genre)
+                session.commit()
+                session.refresh(genre)
+            genres.append(genre)
+        db_album.genres = genres
 
     session.add(db_album)
     session.commit()
@@ -50,12 +61,19 @@ def update_album(session: Session, album_id: int, album_update: AlbumUpdate) -> 
     
     update_data = album_update.model_dump(exclude_unset=True)
     
-    # Handle Tags separately
+    # Handle Tags
     if "tag_ids" in update_data:
         tag_ids = update_data.pop("tag_ids")
         if tag_ids is not None:
             tags = session.exec(select(Tag).where(Tag.id.in_(tag_ids))).all()
             db_album.tags = tags
+
+    # Handle Genres
+    if "genre_ids" in update_data:
+        genre_ids = update_data.pop("genre_ids")
+        if genre_ids is not None:
+            genres = session.exec(select(Genre).where(Genre.id.in_(genre_ids))).all()
+            db_album.genres = genres
             
     # Update other fields
     for key, value in update_data.items():
@@ -65,6 +83,39 @@ def update_album(session: Session, album_id: int, album_update: AlbumUpdate) -> 
     session.commit()
     session.refresh(db_album)
     return db_album
+
+# --- Genres ---
+def get_genres(session: Session):
+    # Return list of dicts with count
+    statement = select(Genre, func.count(AlbumGenreLink.album_id)).join(AlbumGenreLink, isouter=True).group_by(Genre.id)
+    results = session.exec(statement).all()
+    return [{"id": g.id, "name": g.name, "album_count": count} for g, count in results]
+
+def update_genre(session: Session, genre_id: int, genre_data: Genre) -> Optional[Genre]:
+    db_genre = session.get(Genre, genre_id)
+    if not db_genre:
+        return None
+    genre_data_dict = genre_data.model_dump(exclude_unset=True)
+    for key, value in genre_data_dict.items():
+        setattr(db_genre, key, value)
+    session.add(db_genre)
+    session.commit()
+    session.refresh(db_genre)
+    return db_genre
+
+def delete_genre(session: Session, genre_id: int) -> bool:
+    genre = session.get(Genre, genre_id)
+    if not genre:
+        return False
+    
+    # Check dependencies or cascade? 
+    # SQLModel/SQLAlchemy relationships might block delete if not configured to cascade.
+    # Manually delete links first to be safe and ensure "force delete" behavior for cleanup.
+    session.exec(text("DELETE FROM album_genre_links WHERE genre_id = :id"), params={"id": genre_id})
+    
+    session.delete(genre)
+    session.commit()
+    return True
 
 def get_albums(session: Session, offset: int = 0, limit: int = 100) -> List[Album]:
     return session.exec(select(Album).offset(offset).limit(limit)).all()
@@ -89,8 +140,11 @@ def create_tag(session: Session, tag: Tag) -> Tag:
     session.refresh(tag)
     return tag
 
-def get_tags(session: Session) -> List[Tag]:
-    return session.exec(select(Tag)).all()
+def get_tags(session: Session):
+    # Return list of dicts with count
+    statement = select(Tag, func.count(AlbumTagLink.album_id)).join(AlbumTagLink, isouter=True).group_by(Tag.id)
+    results = session.exec(statement).all()
+    return [{"id": t.id, "name": t.name, "color": t.color, "album_count": count} for t, count in results]
 
 def update_tag(session: Session, tag_id: int, tag_data: Tag) -> Optional[Tag]:
     db_tag = session.get(Tag, tag_id)
