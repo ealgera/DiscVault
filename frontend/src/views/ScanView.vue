@@ -22,6 +22,8 @@ const mediaTypes = ref<string[]>([])
 const isCameraActive = ref(false)
 const error = ref('')
 const loading = ref(false)
+const cameras = ref<any[]>([])
+const currentCameraIndex = ref(0)
 
 async function fetchMetadata() {
     try {
@@ -39,44 +41,95 @@ async function fetchMetadata() {
     } catch(e) { console.error(e) }
 }
 
+async function getCameras() {
+    try {
+        const devices = await Html5Qrcode.getCameras()
+        if (devices && devices.length) {
+            // Filter out obviously front-facing cameras if possible, but keep them in the list to cycle through
+            cameras.value = devices
+            
+            // Try to find a back camera to start with
+            const backCameraIndex = devices.findIndex(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('environment'))
+            if (backCameraIndex !== -1) {
+                currentCameraIndex.value = backCameraIndex
+            } else {
+                // If no clear back camera, usually the last one on Android is the main back camera
+                currentCameraIndex.value = devices.length - 1
+            }
+        }
+    } catch (e) {
+        error.value = "Kon geen camera's vinden."
+    }
+}
+
 async function startCamera() {
     error.value = ''
     scannedCode.value = ''
     albumData.value = null
     selectedTagIds.value = []
     selectedLocationId.value = null
-    mediaType.value = 'CD' // Reset to default
+    mediaType.value = 'CD'
     
-    // Load metadata if needed
     if (mediaTypes.value.length === 0) await fetchMetadata()
+    if (cameras.value.length === 0) await getCameras()
     
     isCameraActive.value = true
     
     await nextTick()
 
+    if (cameras.value.length === 0) {
+        error.value = "Geen camera gevonden."
+        return
+    }
+
+    startScannerInstance(cameras.value[currentCameraIndex.value].id)
+}
+
+async function startScannerInstance(deviceId: string) {
     try {
-        scanner.value = new Html5Qrcode(cameraId)
+        // If scanner exists and is running, stop it first
+        if (scanner.value) {
+            if (scanner.value.isScanning) {
+                await scanner.value.stop()
+            }
+        } else {
+            scanner.value = new Html5Qrcode(cameraId)
+        }
+
         await scanner.value.start(
-            { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
+            deviceId,
+            { 
+                fps: 10,
+                // Full screen scanning
+            },
             (decodedText) => {
                 handleScan(decodedText)
             },
             (errorMessage) => {
-                // ignore errors during scanning
+                // ignore
             }
         )
     } catch (err) {
-        error.value = "Kon camera niet starten. Zorg voor HTTPS of localhost."
+        error.value = "Kon camera niet starten. Probeer een andere."
         isCameraActive.value = false
     }
+}
+
+async function switchCamera() {
+    if (cameras.value.length < 2) return
+    
+    currentCameraIndex.value = (currentCameraIndex.value + 1) % cameras.value.length
+    await startScannerInstance(cameras.value[currentCameraIndex.value].id)
 }
 
 async function stopCamera() {
     if (scanner.value && scanner.value.isScanning) {
         await scanner.value.stop()
-        scanner.value = null
     }
+    // Don't null the scanner instance here, we might reuse it. 
+    // Actually, Html5Qrcode instance is tied to element ID.
+    // If we destroy the element (v-if), we should probably recreate the instance next time.
+    scanner.value = null
     isCameraActive.value = false
 }
 
@@ -90,7 +143,6 @@ async function fetchAlbumData(barcode: string) {
     loading.value = true
     error.value = ''
     try {
-        // Fetch metadata (locations/tags) if not loaded yet
         if (mediaTypes.value.length === 0) {
             await fetchMetadata()
         }
@@ -140,47 +192,63 @@ async function saveAlbum() {
     }
 }
 
-// Cleanup
+onMounted(() => {
+    startCamera()
+})
+
 onUnmounted(() => {
-    stopCamera()
+    if (scanner.value && scanner.value.isScanning) {
+        scanner.value.stop()
+    }
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-background-dark pb-20">
     <!-- Header -->
-    <div class="p-4 bg-white dark:bg-surface-dark shadow-sm flex items-center gap-4">
-        <button @click="router.back()" class="text-primary font-bold">Terug</button>
+    <div class="p-4 bg-white dark:bg-surface-dark shadow-sm flex items-center gap-4 sticky top-0 z-20">
+        <button @click="router.back()" class="text-primary font-bold flex items-center gap-1">
+            <span class="material-symbols-outlined text-xl">arrow_back_ios_new</span>
+            Terug
+        </button>
         <h1 class="text-lg font-bold flex-1 text-center">Scanner</h1>
-        <div class="w-10"></div>
+        <div class="w-16"></div> <!-- Spacer for balance -->
     </div>
 
     <!-- Camera Area -->
-    <div v-if="isCameraActive" class="relative bg-black h-96 w-full flex items-center justify-center overflow-hidden">
+    <div v-if="isCameraActive" class="relative bg-black h-[50vh] w-full flex items-center justify-center overflow-hidden">
         <div id="reader" class="w-full h-full"></div>
-        <button @click="stopCamera" class="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full backdrop-blur-md z-10">
+        
+        <!-- Overlay Guide -->
+        <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+            <div class="w-64 h-40 border-2 border-white/50 rounded-lg"></div>
+        </div>
+
+        <!-- Camera Controls -->
+        <div class="absolute bottom-4 left-0 right-0 flex justify-center gap-6 pointer-events-auto z-10">
+            <button v-if="cameras.length > 1" @click="switchCamera" class="bg-white/20 text-white p-3 rounded-full backdrop-blur-md hover:bg-white/30 transition">
+                <span class="material-symbols-outlined">flip_camera_ios</span>
+            </button>
+        </div>
+
+        <button @click="stopCamera" class="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full backdrop-blur-md z-10 pointer-events-auto">
             <span class="material-symbols-outlined">close</span>
         </button>
     </div>
 
-    <!-- Start/Manual Input Area -->
-    <div v-else-if="!albumData && !loading" class="p-6 flex flex-col items-center gap-6 mt-10">
-        <div class="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center text-primary mb-4">
-            <span class="material-symbols-outlined text-4xl">barcode_scanner</span>
-        </div>
+    <!-- Manual Input Area (always visible when not loading result) -->
+    <div v-if="!albumData && !loading" class="p-6 flex flex-col items-center gap-6">
         
-        <button @click="startCamera" class="w-full py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 flex items-center justify-center gap-2">
-            <span class="material-symbols-outlined">photo_camera</span>
-            Start Camera
-        </button>
-
-        <div class="w-full border-t border-slate-200 dark:border-slate-800 my-2"></div>
+        <div v-if="!isCameraActive" class="w-full text-center py-8 bg-slate-100 dark:bg-slate-800 rounded-xl" @click="startCamera">
+            <span class="material-symbols-outlined text-4xl text-slate-400 mb-2">photo_camera</span>
+            <p class="font-bold text-slate-500">Camera gestopt. Tik om te starten.</p>
+        </div>
 
         <div class="w-full">
             <label class="block text-xs font-bold text-slate-400 uppercase mb-2 text-center">Of voer barcode handmatig in</label>
             <div class="flex gap-2">
-                <input v-model="scannedCode" type="text" class="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-primary" placeholder="EAN / UPC">
-                <button @click="fetchAlbumData(scannedCode)" class="bg-slate-200 dark:bg-slate-700 px-4 rounded-xl font-bold">
+                <input v-model="scannedCode" type="text" class="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-primary font-mono text-center tracking-widest" placeholder="EAN / UPC">
+                <button @click="fetchAlbumData(scannedCode)" class="bg-slate-200 dark:bg-slate-700 px-4 rounded-xl font-bold hover:bg-slate-300 transition">
                     <span class="material-symbols-outlined">search</span>
                 </button>
             </div>
@@ -194,13 +262,15 @@ onUnmounted(() => {
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="p-6 text-center">
-        <div class="text-red-500 font-bold mb-4">{{ error }}</div>
-        <button @click="error = ''; startCamera()" class="text-primary font-bold">Opnieuw proberen</button>
+    <div v-if="error" class="p-6 text-center animate-in fade-in">
+        <div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-xl font-bold mb-4 border border-red-100 dark:border-red-900/30">
+            {{ error }}
+        </div>
+        <button @click="startCamera" class="text-primary font-bold hover:underline">Opnieuw proberen</button>
     </div>
 
     <!-- Result Preview -->
-    <div v-if="albumData" class="p-6 animate-in slide-in-from-bottom-4">
+    <div v-if="albumData" class="p-6 animate-in slide-in-from-bottom-4 pb-32">
         <div class="bg-white dark:bg-surface-dark rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
             <!-- Cover Header -->
             <div class="h-32 bg-slate-100 dark:bg-slate-800 relative">
@@ -263,7 +333,7 @@ onUnmounted(() => {
                 </div>
 
                 <div class="flex gap-3 mt-8">
-                    <button @click="albumData = null; scannedCode = ''; mediaType = 'CD'" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Annuleren</button>
+                    <button @click="albumData = null; scannedCode = ''; startCamera()" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Annuleren</button>
                     <button @click="saveAlbum" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30">Opslaan</button>
                 </div>
             </div>
