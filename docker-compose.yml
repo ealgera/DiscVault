@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    container_name: discvault-backend
+    restart: unless-stopped
+    environment:
+      - DB_PATH=/data/discvault.db
+    volumes:
+      - ./data:/data
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    container_name: discvault-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

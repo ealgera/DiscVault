@@ -6,6 +6,7 @@ interface Album {
   id: number
   title: string
   cover_url?: string
+  artists: { name: string }[]
 }
 
 const router = useRouter()
@@ -140,8 +141,9 @@ onMounted(() => {
           
           <div class="flex-1 min-w-0">
             <h3 class="font-bold text-slate-900 dark:text-white truncate">{{ album.title }}</h3>
-            <!-- We could add artist here if we had it in the list response, but it requires backend update to include artists in list view efficiently -->
-            <p class="text-sm text-slate-500 truncate">Album</p> 
+            <p class="text-sm text-slate-500 truncate">
+                {{ album.artists && album.artists.length ? album.artists.map(a => a.name).join(', ') : 'Onbekende artiest' }}
+            </p> 
           </div>
           
           <span class="material-symbols-outlined text-slate-300">chevron_right</span>

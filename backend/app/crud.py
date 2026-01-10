@@ -1,4 +1,5 @@
-from sqlmodel import Session, select, func, text
+from sqlmodel import Session, select, func, text, desc
+from sqlalchemy.orm import selectinload
 from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, AlbumCreate, AlbumUpdate, Genre
 from typing import List, Optional
 
@@ -118,7 +119,14 @@ def delete_genre(session: Session, genre_id: int) -> bool:
     return True
 
 def get_albums(session: Session, offset: int = 0, limit: int = 100) -> List[Album]:
-    return session.exec(select(Album).offset(offset).limit(limit)).all()
+    return session.exec(
+        select(Album)
+        .options(selectinload(Album.artists))
+        .options(selectinload(Album.location))
+        .order_by(desc(Album.created_at))
+        .offset(offset)
+        .limit(limit)
+    ).all()
 
 def get_album(session: Session, album_id: int) -> Optional[Album]:
     return session.get(Album, album_id)

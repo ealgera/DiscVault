@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlmodel import Session, select, text, func
+from sqlalchemy.orm import selectinload
 from typing import List
 
 from .database import create_db_and_tables, get_session, engine
@@ -63,7 +64,7 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to DiscVault API"}
+    return {"message": "Welcome to DiscVault API", "version": "1.0.0"}
 
 @app.get("/health")
 def health_check():
@@ -73,6 +74,12 @@ def health_check():
 def read_stats(session: Session = Depends(get_session)):
     return crud.get_stats(session)
 
+@app.get("/constants")
+def read_constants():
+    return {
+        "media_types": ['CD', 'Vinyl', 'SACD', 'Blu-ray Audio', 'Blu-ray Video', 'DVD Audio', 'Digital']
+    }
+
 @app.get("/search", response_model=List[AlbumRead])
 def search_albums(q: str, filter: str = "all", session: Session = Depends(get_session)):
     q_lower = q.lower()
@@ -81,23 +88,23 @@ def search_albums(q: str, filter: str = "all", session: Session = Depends(get_se
     
     # 1. Search by Title
     if filter in ["all", "title"]:
-        results += session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
+        results += session.exec(select(Album).options(selectinload(Album.artists)).where(func.lower(Album.title).contains(q_lower))).all()
     
     # 2. Search by Artist Name
     if filter in ["all", "artist"]:
-        results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
+        results += session.exec(select(Album).options(selectinload(Album.artists)).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
     
     # 3. Search by Notes
     if filter == "all": # Notes usually only in global search
-        results += session.exec(select(Album).where(func.lower(Album.notes).contains(q_lower))).all()
+        results += session.exec(select(Album).options(selectinload(Album.artists)).where(func.lower(Album.notes).contains(q_lower))).all()
 
     # 4. Search by Genre
     if filter in ["all", "genre"]:
-        results += session.exec(select(Album).join(AlbumGenreLink).join(Genre).where(func.lower(Genre.name).contains(q_lower))).all()
+        results += session.exec(select(Album).options(selectinload(Album.artists)).join(AlbumGenreLink).join(Genre).where(func.lower(Genre.name).contains(q_lower))).all()
 
     # 5. Search by Tag
     if filter in ["all", "tag"]:
-        results += session.exec(select(Album).join(AlbumTagLink).join(Tag).where(func.lower(Tag.name).contains(q_lower))).all()
+        results += session.exec(select(Album).options(selectinload(Album.artists)).join(AlbumTagLink).join(Tag).where(func.lower(Tag.name).contains(q_lower))).all()
 
     # Combine and Deduplicate (by ID)
     seen_ids = set()

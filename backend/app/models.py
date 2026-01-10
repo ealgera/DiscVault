@@ -124,6 +124,8 @@ class AlbumUpdate(SQLModel):
     title: Optional[str] = None
     year: Optional[int] = None
     notes: Optional[str] = None
+    media_type: Optional[str] = None
+    spars_code: Optional[str] = None
     location_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
     genre_ids: Optional[List[int]] = None

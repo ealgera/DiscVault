@@ -6,7 +6,24 @@ const route = useRoute()
 const router = useRouter()
 const albumId = route.params.id
 
-const album = ref<any>(null)
+interface Album {
+  id: number
+  title: string
+  year: number
+  artists: { id: number, name: string }[]
+  cover_url?: string
+  location?: { id: number, name: string, storage_type: string, shelf?: string }
+  tags?: { id: number, name: string, color: string }[]
+  genres?: { id: number, name: string }[]
+  catalog_no?: string
+  notes?: string
+  media_type: string
+  spars_code?: string
+  created_at: string
+  tracks?: { track_no: number, title: string, duration: string }[]
+}
+
+const album = ref<Album | null>(null)
 const loading = ref(true)
 const error = ref('')
 
@@ -16,6 +33,8 @@ const locations = ref<any[]>([])
 const allTags = ref<any[]>([])
 const allGenres = ref<any[]>([])
 const editForm = ref<any>({})
+
+const mediaTypes = ref<string[]>([])
 
 async function fetchAlbum() {
     loading.value = true
@@ -34,7 +53,9 @@ async function fetchAlbum() {
                 location_id: data.location?.id || null,
                 tag_ids: data.tags ? data.tags.map((t:any) => t.id) : [],
                 genre_ids: data.genres ? data.genres.map((g:any) => g.id) : [],
-                notes: data.notes
+                notes: data.notes,
+                media_type: data.media_type || 'CD',
+                spars_code: data.spars_code || ''
             }
         } else {
             error.value = 'Album niet gevonden'
@@ -52,12 +73,17 @@ async function fetchMetadata() {
         const results = await Promise.allSettled([
             fetch(`${import.meta.env.VITE_API_URL}/locations/`),
             fetch(`${import.meta.env.VITE_API_URL}/tags/`),
-            fetch(`${import.meta.env.VITE_API_URL}/genres/`)
+            fetch(`${import.meta.env.VITE_API_URL}/genres/`),
+            fetch(`${import.meta.env.VITE_API_URL}/constants`)
         ])
         
         if (results[0].status === 'fulfilled' && results[0].value.ok) locations.value = await results[0].value.json()
         if (results[1].status === 'fulfilled' && results[1].value.ok) allTags.value = await results[1].value.json()
         if (results[2].status === 'fulfilled' && results[2].value.ok) allGenres.value = await results[2].value.json()
+        if (results[3].status === 'fulfilled' && results[3].value.ok) {
+            const data = await results[3].value.json()
+            mediaTypes.value = data.media_types
+        }
         
     } catch(e) { console.error("Metadata fetch error:", e) }
 }
@@ -237,6 +263,16 @@ onMounted(() => {
 
             <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2 text-slate-400">
+                    <span class="material-symbols-outlined text-[18px]">album</span>
+                    <span class="text-xs font-bold uppercase">Media</span>
+                </div>
+                <p class="font-bold text-slate-900 dark:text-white">
+                    {{ album.media_type }} <span v-if="album.spars_code" class="text-xs text-slate-500 ml-1">({{ album.spars_code }})</span>
+                </p>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2 text-slate-400">
                     <span class="material-symbols-outlined text-[18px]">music_note</span>
                     <span class="text-xs font-bold uppercase">Genre</span>
                 </div>
@@ -251,6 +287,16 @@ onMounted(() => {
                     <span class="text-xs font-bold uppercase">Catalogus #</span>
                 </div>
                 <p class="font-bold text-slate-900 dark:text-white">{{ album.catalog_no || '-' }}</p>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2 text-slate-400">
+                    <span class="material-symbols-outlined text-[18px]">calendar_today</span>
+                    <span class="text-xs font-bold uppercase">Toegevoegd</span>
+                </div>
+                <p class="font-bold text-slate-900 dark:text-white text-sm">
+                    {{ new Date(album.created_at).toLocaleDateString() }}
+                </p>
             </div>
 
             <div class="col-span-2 flex flex-col gap-1">
@@ -284,13 +330,20 @@ onMounted(() => {
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Jaar</label>
-                    <input v-model="editForm.year" type="number" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Media Type</label>
+                    <select v-model="editForm.media_type" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                        <option v-for="t in mediaTypes" :key="t" :value="t">{{ t }}</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Catalogus Nr.</label>
-                    <input v-model="editForm.catalog_no" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">SPARS Code</label>
+                    <input v-model="editForm.spars_code" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary" placeholder="bijv. DDD">
                 </div>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Catalogus Nr.</label>
+                <input v-model="editForm.catalog_no" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
             </div>
             
             <div>

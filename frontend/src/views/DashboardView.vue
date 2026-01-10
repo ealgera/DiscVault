@@ -128,7 +128,9 @@ onMounted(async () => {
           
           <div class="flex flex-1 flex-col justify-center min-w-0">
             <h4 class="font-bold text-slate-900 dark:text-white leading-tight truncate">{{ album.title }}</h4>
-            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ album.year }}</p>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+                {{ album.artists && album.artists.length ? album.artists.map((a:any) => a.name).join(', ') : 'Onbekende artiest' }}
+            </p>
           </div>
           
           <div class="flex flex-col items-end gap-1">
