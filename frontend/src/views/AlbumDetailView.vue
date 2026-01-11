@@ -109,8 +109,14 @@ async function saveChanges() {
 
 // Favorite Logic
 const isFavorite = computed(() => {
-    if (!album.value || !album.value.tags) return false
-    return album.value.tags.some((t:any) => t.name === 'Favoriet')
+    const currentAlbum = album.value
+    if (!currentAlbum) return false
+    
+    // Explicitly check for tags existence
+    if (!currentAlbum.tags) return false
+    
+    // Use optional chaining just in case, though the above check should cover it
+    return currentAlbum.tags.some((t:any) => t.name === 'Favoriet')
 })
 
 async function toggleFavorite() {
@@ -126,7 +132,7 @@ async function toggleFavorite() {
         return
     }
 
-    const currentTagIds = album.value.tags.map((t:any) => t.id)
+    const currentTagIds = album.value.tags ? album.value.tags.map((t:any) => t.id) : []
     let newTagIds = []
 
     if (isFavorite.value) {

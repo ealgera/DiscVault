@@ -3,12 +3,8 @@
 # Configuratie
 VERSION="1.0.0"
 APP_NAME="discvault"
-
-# Optioneel: Zet hier je Docker Hub gebruikersnaam als je wilt pushen (bijv. "jansen")
-# Laat leeg voor lokaal gebruik
 REGISTRY=""
 
-# Helper functie voor image naam
 get_image_name() {
     if [ -z "$REGISTRY" ]; then
         echo "$APP_NAME-$1:$VERSION"
@@ -24,13 +20,13 @@ echo "========================================"
 echo "Start build voor versie $VERSION"
 echo "========================================"
 
-# 1. Backend Bouwen
+# 1. Backend Bouwen (Context: root)
 echo "🔨 Bouwen Backend ($BACKEND_IMAGE)..."
-docker build -t "$BACKEND_IMAGE" ./backend
+sudo docker build -f Dockerfile.backend -t "$BACKEND_IMAGE" .
 
-# 2. Frontend Bouwen
+# 2. Frontend Bouwen (Context: root)
 echo "🔨 Bouwen Frontend ($FRONTEND_IMAGE)..."
-docker build -t "$FRONTEND_IMAGE" ./frontend
+sudo docker build -f Dockerfile.frontend -t "$FRONTEND_IMAGE" .
 
 echo "========================================"
 echo "✅ Klaar!"

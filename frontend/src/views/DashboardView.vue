@@ -6,13 +6,16 @@ interface Album {
   title: string
   year: number
   cover_url?: string
+  artists: { name: string }[]
 }
 
-const stats = ref({
-  albums: 0,
-  artists: 0,
-  genres: 0
-})
+interface Stats {
+  albums: number
+  artists: number
+  genres: number
+}
+
+const stats = ref<Stats>({ albums: 0, artists: 0, genres: 0 })
 
 const recentAlbums = ref<Album[]>([])
 const error = ref('')
