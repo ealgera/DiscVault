@@ -203,6 +203,27 @@ async function deleteAlbum() {
     }
 }
 
+async function syncWithMusicBrainz() {
+    if (!album.value?.upc_ean) return
+    
+    loading.value = true
+    try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/albums/${albumId}/sync`, {
+            method: 'POST'
+        })
+        if (response.ok) {
+            await fetchAlbum()
+        } else {
+            const data = await response.json()
+            alert(data.detail || 'Sync mislukt')
+        }
+    } catch (e) {
+        alert('Fout bij synchroniseren')
+    } finally {
+        loading.value = false
+    }
+}
+
 function startEdit() {
     fetchMetadata()
     isEditing.value = true
@@ -373,7 +394,17 @@ onMounted(() => {
                     <span class="material-symbols-outlined text-[18px]">barcode</span>
                     <span class="text-xs font-bold uppercase">Barcode (UPC/EAN)</span>
                 </div>
-                <p class="font-bold text-slate-900 dark:text-white">{{ album.upc_ean || '-' }}</p>
+                <div class="flex items-center gap-2">
+                    <p class="font-bold text-slate-900 dark:text-white">{{ album.upc_ean || '-' }}</p>
+                    <button 
+                        v-if="album.upc_ean && (!album.tracks || album.tracks.length === 0)" 
+                        @click="syncWithMusicBrainz"
+                        class="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded hover:bg-primary/20 transition flex items-center gap-1"
+                    >
+                        <span class="material-symbols-outlined text-xs">sync</span>
+                        INFO OPHALEN
+                    </button>
+                </div>
             </div>
 
             <div class="flex flex-col gap-1">

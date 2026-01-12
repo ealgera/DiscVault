@@ -14,17 +14,20 @@ const route = useRoute()
 
 const searchQuery = ref(route.query.q?.toString() || '')
 const searchFilter = ref(route.query.filter?.toString() || 'all')
+const sortBy = ref(route.query.sort?.toString() || 'created_at')
+const sortOrder = ref(route.query.order?.toString() || 'desc')
 const albums = ref<Album[]>([])
 const loading = ref(true)
+const showSortMenu = ref(false)
 let searchTimeout: number
 
 async function fetchAlbums(query: string = '') {
     loading.value = true
     try {
-        let url = `${import.meta.env.VITE_API_URL}/albums/`
+        let url = `${import.meta.env.VITE_API_URL}/albums/?limit=1000&sort_by=${sortBy.value}&order=${sortOrder.value}`
         // Use current searchFilter if query exists, otherwise just list
         if (query) {
-            url = `${import.meta.env.VITE_API_URL}/search?q=${encodeURIComponent(query)}&filter=${searchFilter.value}`
+            url = `${import.meta.env.VITE_API_URL}/search?q=${encodeURIComponent(query)}&filter=${searchFilter.value}&sort_by=${sortBy.value}&order=${sortOrder.value}`
         }
         const response = await fetch(url)
         if (response.ok) {
@@ -41,7 +44,9 @@ function updateQuery() {
     router.replace({ 
         query: { 
             q: searchQuery.value || undefined, 
-            filter: searchFilter.value !== 'all' ? searchFilter.value : undefined 
+            filter: searchFilter.value !== 'all' ? searchFilter.value : undefined,
+            sort: sortBy.value !== 'created_at' ? sortBy.value : undefined,
+            order: sortOrder.value !== 'desc' ? sortOrder.value : undefined
         } 
     })
 }
@@ -57,9 +62,19 @@ function handleSearch() {
 function setFilter(filter: string) {
     searchFilter.value = filter
     updateQuery()
-    if (searchQuery.value) {
-        fetchAlbums(searchQuery.value)
+    fetchAlbums(searchQuery.value)
+}
+
+function setSort(field: string) {
+    if (sortBy.value === field) {
+        sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+    } else {
+        sortBy.value = field
+        sortOrder.value = 'asc' // Default to asc for new field
     }
+    updateQuery()
+    fetchAlbums(searchQuery.value)
+    showSortMenu.value = false
 }
 
 function resolveCoverURL(url: string | undefined) {
@@ -103,16 +118,48 @@ onMounted(() => {
       </div>
 
       <!-- Filters -->
-      <div class="flex gap-2 mt-3 overflow-x-auto pb-1 no-scrollbar px-4">
+      <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 no-scrollbar px-4">
         <button 
-            v-for="f in ['all', 'title', 'artist', 'genre', 'tag']" 
+            v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag']" 
             :key="f"
             @click="setFilter(f)"
             class="px-3 py-1 rounded-full text-xs font-bold border transition-colors whitespace-nowrap"
             :class="searchFilter === f ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-surface-dark text-slate-500 border-slate-200 dark:border-slate-700'"
         >
-            {{ f === 'all' ? 'Alles' : f.charAt(0).toUpperCase() + f.slice(1) }}
+            {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f.charAt(0).toUpperCase() + f.slice(1) }}
         </button>
+        
+        <div class="flex-1"></div>
+
+        <div class="relative">
+            <button 
+                @click="showSortMenu = !showSortMenu"
+                class="p-2 mr-1 rounded-lg bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+            >
+                <span class="material-symbols-outlined text-xl">sort</span>
+            </button>
+
+            <!-- Sort Menu Tooltip/Dropdown -->
+            <div v-if="showSortMenu" class="absolute right-1 top-12 w-48 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 flex flex-col p-1">
+                <button 
+                    v-for="s in [
+                        { id: 'title', label: 'Titel' },
+                        { id: 'artist', label: 'Artiest' },
+                        { id: 'year', label: 'Jaar (Release)' },
+                        { id: 'created_at', label: 'Datum Toegevoegd' }
+                    ]" 
+                    :key="s.id"
+                    @click="setSort(s.id)"
+                    class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                    :class="sortBy === s.id ? 'text-primary font-bold' : 'text-slate-600 dark:text-slate-400'"
+                >
+                    <span class="text-sm">{{ s.label }}</span>
+                    <span v-if="sortBy === s.id" class="material-symbols-outlined text-sm">
+                        {{ sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                    </span>
+                </button>
+            </div>
+        </div>
       </div>
     </div>
 

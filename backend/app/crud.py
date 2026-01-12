@@ -154,15 +154,37 @@ def delete_genre(session: Session, genre_id: int) -> bool:
     session.commit()
     return True
 
-def get_albums(session: Session, offset: int = 0, limit: int = 100) -> List[Album]:
-    return session.exec(
-        select(Album)
-        .options(selectinload(Album.artists))
-        .options(selectinload(Album.location))
-        .order_by(desc(Album.created_at))
-        .offset(offset)
-        .limit(limit)
-    ).all()
+def get_albums(session: Session, offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", album_ids: Optional[List[int]] = None) -> List[Album]:
+    statement = select(Album).options(selectinload(Album.artists)).options(selectinload(Album.location))
+    
+    if album_ids is not None:
+        statement = statement.where(Album.id.in_(album_ids))
+
+    # Sort Logic
+    sort_attr = None
+    if sort_by == "title":
+        # Case insensitive sort for title
+        sort_attr = func.lower(Album.title)
+    elif sort_by == "year":
+        sort_attr = Album.year
+    elif sort_by == "created_at":
+        sort_attr = Album.created_at
+    elif sort_by == "artist":
+        # To sort by artist, we join and take the first artist name
+        # This is a bit complex for a single query, but we can join and use func.min(Artist.name)
+        statement = statement.join(AlbumArtistLink, isouter=True).join(Artist, isouter=True).group_by(Album.id)
+        sort_attr = func.min(Artist.name)
+    
+    if sort_attr is not None:
+        if order == "desc":
+            statement = statement.order_by(desc(sort_attr))
+        else:
+            statement = statement.order_by(sort_attr)
+    else:
+        # Default fallback
+        statement = statement.order_by(desc(Album.created_at))
+
+    return session.exec(statement.offset(offset).limit(limit)).all()
 
 def get_album(session: Session, album_id: int) -> Optional[Album]:
     return session.get(Album, album_id)

@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from sqlmodel import Session, select, text, func
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import List, Optional
 import os
 import shutil
 from pathlib import Path
@@ -90,41 +90,50 @@ def read_constants():
     }
 
 @app.get("/search", response_model=List[AlbumRead])
-def search_albums(q: str, filter: str = "all", session: Session = Depends(get_session)):
+def search_albums(q: str, filter: str = "all", sort_by: str = "created_at", order: str = "desc", session: Session = Depends(get_session)):
     q_lower = q.lower()
     
     results = []
     
     # 1. Search by Title
     if filter in ["all", "title"]:
-        results += session.exec(select(Album).options(selectinload(Album.artists)).where(func.lower(Album.title).contains(q_lower))).all()
+        results += session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
     
     # 2. Search by Artist Name
     if filter in ["all", "artist"]:
-        results += session.exec(select(Album).options(selectinload(Album.artists)).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
+        results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
     
     # 3. Search by Notes
-    if filter == "all": # Notes usually only in global search
-        results += session.exec(select(Album).options(selectinload(Album.artists)).where(func.lower(Album.notes).contains(q_lower))).all()
+    if filter == "all":
+        results += session.exec(select(Album).where(func.lower(Album.notes).contains(q_lower))).all()
 
     # 4. Search by Genre
     if filter in ["all", "genre"]:
-        results += session.exec(select(Album).options(selectinload(Album.artists)).join(AlbumGenreLink).join(Genre).where(func.lower(Genre.name).contains(q_lower))).all()
+        results += session.exec(select(Album).join(AlbumGenreLink).join(Genre).where(func.lower(Genre.name).contains(q_lower))).all()
 
     # 5. Search by Tag
     if filter in ["all", "tag"]:
-        results += session.exec(select(Album).options(selectinload(Album.artists)).join(AlbumTagLink).join(Tag).where(func.lower(Tag.name).contains(q_lower))).all()
+        results += session.exec(select(Album).join(AlbumTagLink).join(Tag).where(func.lower(Tag.name).contains(q_lower))).all()
+        
+    # 6. Search by Track Title
+    if filter in ["all", "track"]:
+        # Join Tracks and filter by title
+        from .models import Track
+        results += session.exec(select(Album).join(Track).where(func.lower(Track.title).contains(q_lower))).all()
 
     # Combine and Deduplicate (by ID)
     seen_ids = set()
-    combined_results = []
-    
+    deduped_ids = []
     for album in results:
         if album.id not in seen_ids:
-            combined_results.append(album)
+            deduped_ids.append(album.id)
             seen_ids.add(album.id)
-            
-    return combined_results
+    
+    if not deduped_ids:
+        return []
+
+    # Final query to get full objects with relations and APPLY SORTING
+    return crud.get_albums(session, offset=0, limit=1000, sort_by=sort_by, order=order, album_ids=deduped_ids)
 
 # --- Album Endpoints ---
 @app.post("/albums/", response_model=Album)
@@ -132,8 +141,8 @@ def create_album(album: AlbumCreate, session: Session = Depends(get_session)):
     return crud.create_album(session=session, album_create=album)
 
 @app.get("/albums/", response_model=List[AlbumRead])
-def read_albums(offset: int = 0, limit: int = 100, session: Session = Depends(get_session)):
-    return crud.get_albums(session=session, offset=offset, limit=limit)
+def read_albums(offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", session: Session = Depends(get_session)):
+    return crud.get_albums(session=session, offset=offset, limit=limit, sort_by=sort_by, order=order)
 
 @app.get("/albums/{album_id}", response_model=AlbumRead)
 def read_album(album_id: int, session: Session = Depends(get_session)):
@@ -242,6 +251,44 @@ async def upload_album_cover(album_id: int, file: UploadFile = File(...), sessio
     crud.update_album(session, album_id, AlbumUpdate(cover_url=cover_url))
     
     return {"cover_url": cover_url}
+
+@app.post("/albums/{album_id}/sync", response_model=AlbumRead)
+async def sync_album_with_musicbrainz(album_id: int, session: Session = Depends(get_session)):
+    db_album = crud.get_album(session, album_id)
+    if not db_album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    
+    if not db_album.upc_ean:
+        raise HTTPException(status_code=400, detail="Album has no barcode for syncing")
+    
+    # Fetch data from MusicBrainz
+    mb_data = await services.lookup_musicbrainz_by_barcode(db_album.upc_ean)
+    if not mb_data:
+        raise HTTPException(status_code=404, detail="Could not find album on MusicBrainz")
+    
+    # Prepare update
+    # We prioritize MB data for tracks and genres, and potentially catalog_no/year if missing
+    update_params = {
+        "artist_names": mb_data.get("artists"),
+        "genre_names": mb_data.get("genres"),
+        "tracks": mb_data.get("tracks")
+    }
+    
+    # Only update title/year/catalog_no if they are currently null or empty
+    if not db_album.title:
+        update_params["title"] = mb_data.get("title")
+    if not db_album.year:
+        update_params["year"] = mb_data.get("year")
+    if not db_album.catalog_no:
+        update_params["catalog_no"] = mb_data.get("catalog_no")
+    if not db_album.cover_url:
+        update_params["cover_url"] = mb_data.get("cover_url")
+
+    # Use AlbumUpdate to validate (though crud.update_album does it too)
+    album_update = AlbumUpdate(**{k: v for k, v in update_params.items() if v is not None})
+    
+    updated_album = crud.update_album(session, album_id, album_update)
+    return updated_album
 
 # --- Relationships ---
 @app.post("/albums/{album_id}/artists/{artist_id}")
