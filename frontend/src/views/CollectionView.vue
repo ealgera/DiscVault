@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 interface Album {
@@ -65,16 +65,27 @@ function setFilter(filter: string) {
     fetchAlbums(searchQuery.value)
 }
 
+const sortOptions = [
+    { id: 'title', label: 'Titel' },
+    { id: 'artist', label: 'Artiest' },
+    { id: 'year', label: 'Jaar (Release)' },
+    { id: 'created_at', label: 'Datum Toegevoegd' }
+]
+
+const currentSortLabel = computed(() => {
+    const option = sortOptions.find(o => o.id === sortBy.value)
+    return option ? option.label : 'Datum'
+})
+
 function setSort(field: string) {
     if (sortBy.value === field) {
         sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
     } else {
         sortBy.value = field
-        sortOrder.value = 'asc' // Default to asc for new field
+        sortOrder.value = 'asc' 
     }
     updateQuery()
     fetchAlbums(searchQuery.value)
-    showSortMenu.value = false
 }
 
 function resolveCoverURL(url: string | undefined) {
@@ -117,46 +128,54 @@ onMounted(() => {
         >
       </div>
 
-      <!-- Filters -->
-      <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 no-scrollbar px-4">
-        <button 
-            v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag']" 
-            :key="f"
-            @click="setFilter(f)"
-            class="px-3 py-1 rounded-full text-xs font-bold border transition-colors whitespace-nowrap"
-            :class="searchFilter === f ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-surface-dark text-slate-500 border-slate-200 dark:border-slate-700'"
-        >
-            {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f.charAt(0).toUpperCase() + f.slice(1) }}
-        </button>
+      <!-- Filters & Sorting -->
+      <div class="flex items-center gap-2 mt-3 px-4">
+        <!-- Scrolling Filters -->
+        <div class="flex-1 flex gap-2 overflow-x-auto no-scrollbar py-1">
+          <button 
+              v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag']" 
+              :key="f"
+              @click="setFilter(f)"
+              class="px-3 py-1.5 rounded-full text-xs font-bold border transition-colors whitespace-nowrap shadow-sm"
+              :class="searchFilter === f ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-surface-dark text-slate-500 border-slate-200 dark:border-slate-700'"
+          >
+              {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f.charAt(0).toUpperCase() + f.slice(1) }}
+          </button>
+        </div>
         
-        <div class="flex-1"></div>
-
-        <div class="relative">
+        <!-- Sorting Toggle -->
+        <div class="relative shrink-0">
             <button 
                 @click="showSortMenu = !showSortMenu"
-                class="p-2 mr-1 rounded-lg bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700 shadow-sm text-slate-600 dark:text-white hover:border-primary transition-colors"
             >
-                <span class="material-symbols-outlined text-xl">sort</span>
+                <div class="flex flex-col items-center justify-center -space-y-2">
+                    <span class="material-symbols-outlined text-[18px] leading-none">sort</span>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-wider">{{ currentSortLabel }}</span>
+                <span class="material-symbols-outlined text-sm text-primary">
+                    {{ sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                </span>
             </button>
 
-            <!-- Sort Menu Tooltip/Dropdown -->
-            <div v-if="showSortMenu" class="absolute right-1 top-12 w-48 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 flex flex-col p-1">
+            <!-- Sort Menu Dropdown -->
+            <div v-if="showSortMenu" class="absolute right-0 top-11 w-48 bg-white dark:bg-surface-dark rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 flex flex-col p-1.5 overflow-hidden">
+                <div class="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-800 mb-1">
+                    Sorteren op
+                </div>
                 <button 
-                    v-for="s in [
-                        { id: 'title', label: 'Titel' },
-                        { id: 'artist', label: 'Artiest' },
-                        { id: 'year', label: 'Jaar (Release)' },
-                        { id: 'created_at', label: 'Datum Toegevoegd' }
-                    ]" 
+                    v-for="s in sortOptions" 
                     :key="s.id"
                     @click="setSort(s.id)"
-                    class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    :class="sortBy === s.id ? 'text-primary font-bold' : 'text-slate-600 dark:text-slate-400'"
+                    class="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
+                    :class="sortBy === s.id ? 'bg-primary/5 text-primary font-bold' : 'text-slate-600 dark:text-slate-400'"
                 >
-                    <span class="text-sm">{{ s.label }}</span>
-                    <span v-if="sortBy === s.id" class="material-symbols-outlined text-sm">
-                        {{ sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
-                    </span>
+                    <span class="text-sm font-semibold">{{ s.label }}</span>
+                    <div v-if="sortBy === s.id" class="flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm animate-bounce-subtle">
+                            {{ sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                        </span>
+                    </div>
                 </button>
             </div>
         </div>
