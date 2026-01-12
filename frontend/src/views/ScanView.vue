@@ -25,20 +25,56 @@ const loading = ref(false)
 const cameras = ref<any[]>([])
 const currentCameraIndex = ref(0)
 
+const selectedFile = ref<File | null>(null)
+const coverPreview = ref<string | null>(null)
+
+const allGenres = ref<any[]>([])
+
 async function fetchMetadata() {
     try {
-        const [locRes, tagRes, constRes] = await Promise.all([
+        const [locRes, tagRes, genRes, constRes] = await Promise.all([
             fetch(`${import.meta.env.VITE_API_URL}/locations/`),
             fetch(`${import.meta.env.VITE_API_URL}/tags/`),
+            fetch(`${import.meta.env.VITE_API_URL}/genres/`),
             fetch(`${import.meta.env.VITE_API_URL}/constants`)
         ])
         if (locRes.ok) locations.value = await locRes.json()
         if (tagRes.ok) allTags.value = await tagRes.json()
+        if (genRes.ok) allGenres.value = await genRes.json()
         if (constRes.ok) {
             const constants = await constRes.json()
             mediaTypes.value = constants.media_types
         }
     } catch(e) { console.error(e) }
+}
+
+function manualAdd() {
+    stopCamera()
+    albumData.value = {
+        title: '',
+        artists: [],
+        year: new Date().getFullYear(),
+        genres: [],
+        catalog_no: '',
+        cover_url: '',
+        media_type: 'CD',
+        spars_code: '',
+        notes: '',
+        upc_ean: ''
+    }
+    selectedTagIds.value = []
+    selectedLocationId.value = null
+    mediaType.value = 'CD'
+    selectedFile.value = null
+    coverPreview.value = null
+}
+
+function onCoverChange(e: any) {
+    const file = e.target.files[0]
+    if (file) {
+        selectedFile.value = file
+        coverPreview.value = URL.createObjectURL(file)
+    }
 }
 
 async function getCameras() {
@@ -163,7 +199,9 @@ async function fetchAlbumData(barcode: string) {
 async function saveAlbum() {
     if (!albumData.value) return
     
+    loading.value = true
     try {
+        // 1. Create album first to get ID
         const response = await fetch(`${import.meta.env.VITE_API_URL}/albums/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -177,19 +215,41 @@ async function saveAlbum() {
                 tag_ids: selectedTagIds.value,
                 artist_names: albumData.value.artists,
                 genre_names: albumData.value.genres,
-                media_type: mediaType.value
+                media_type: mediaType.value,
+                notes: albumData.value.notes,
+                spars_code: albumData.value.spars_code
             })
         })
         
         if (response.ok) {
             const newAlbum = await response.json()
+
+            // 2. Upload cover if exists
+            if (selectedFile.value) {
+                const formData = new FormData()
+                formData.append('file', selectedFile.value)
+                await fetch(`${import.meta.env.VITE_API_URL}/albums/${newAlbum.id}/cover`, {
+                    method: 'POST',
+                    body: formData
+                })
+            }
+
             router.push(`/albums/${newAlbum.id}`)
         } else {
             alert("Opslaan mislukt")
         }
     } catch (e) {
         alert("Fout bij opslaan")
+    } finally {
+        loading.value = false
     }
+}
+
+function resolveCoverURL(url: string | undefined) {
+    if (!url) return undefined
+    if (url.startsWith('http')) return url
+    // If it starts with /covers, it's a local file served by the backend
+    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
 onMounted(() => {
@@ -246,12 +306,17 @@ onUnmounted(() => {
 
         <div class="w-full">
             <label class="block text-xs font-bold text-slate-400 uppercase mb-2 text-center">Of voer barcode handmatig in</label>
-            <div class="flex gap-2">
+            <div class="flex gap-2 mb-4">
                 <input v-model="scannedCode" type="text" class="flex-1 bg-white dark:bg-slate-800 border-none rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-primary font-mono text-center tracking-widest" placeholder="EAN / UPC">
                 <button @click="fetchAlbumData(scannedCode)" class="bg-slate-200 dark:bg-slate-700 px-4 rounded-xl font-bold hover:bg-slate-300 transition">
-                    <span class="material-symbols-outlined">search</span>
+                    <span class="material-symbols-outlined font-bold">search</span>
                 </button>
             </div>
+            
+            <button @click="manualAdd" class="w-full py-4 bg-white dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 font-bold flex items-center justify-center gap-2 hover:border-primary hover:text-primary transition-colors">
+                <span class="material-symbols-outlined">add_circle</span>
+                Handmatig toevoegen
+            </button>
         </div>
     </div>
 
@@ -274,9 +339,9 @@ onUnmounted(() => {
         <div class="bg-white dark:bg-surface-dark rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
             <!-- Cover Header -->
             <div class="h-32 bg-slate-100 dark:bg-slate-800 relative">
-                <img v-if="albumData.cover_url" :src="albumData.cover_url" class="w-full h-full object-cover opacity-50 blur-sm">
+                <img v-if="coverPreview || albumData.cover_url" :src="coverPreview || resolveCoverURL(albumData.cover_url)" class="w-full h-full object-cover opacity-50 blur-sm">
                 <div class="absolute -bottom-10 left-6">
-                    <img v-if="albumData.cover_url" :src="albumData.cover_url" class="w-24 h-24 rounded-lg shadow-lg border-2 border-white dark:border-surface-dark object-cover bg-white">
+                    <img v-if="coverPreview || albumData.cover_url" :src="coverPreview || resolveCoverURL(albumData.cover_url)" class="w-24 h-24 rounded-lg shadow-lg border-2 border-white dark:border-surface-dark object-cover bg-white">
                     <div v-else class="w-24 h-24 rounded-lg shadow-lg border-2 border-white bg-slate-200 flex items-center justify-center">
                         <span class="material-symbols-outlined text-3xl text-slate-400">album</span>
                     </div>
@@ -284,24 +349,50 @@ onUnmounted(() => {
             </div>
 
             <div class="pt-12 px-6 pb-6">
-                <div class="mb-6">
-                    <h2 class="text-xl font-bold leading-tight text-slate-900 dark:text-white">{{ albumData.title }}</h2>
-                    <p class="text-primary font-bold">{{ albumData.artists.join(', ') }}</p>
-                    <p class="text-sm text-slate-400 mt-1">{{ albumData.year }} • {{ albumData.catalog_no || 'Geen catalogusnr' }}</p>
-                    <div class="flex flex-wrap gap-1 mt-2">
-                        <span v-for="g in albumData.genres" :key="g" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500">
-                            {{ g }}
-                        </span>
+                <!-- Cover Upload -->
+                <div class="mb-6 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cover Afbeelding Aanpassen</label>
+                    <input type="file" @change="onCoverChange" accept="image/*" class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+                </div>
+                <!-- Editable Details -->
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Titel</label>
+                        <input v-model="albumData.title" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Artist(s) <span class="text-[10px] lowercase font-normal">(komma gescheiden)</span></label>
+                        <input :value="albumData.artists.join(', ')" @input="(e:any) => albumData.artists = e.target.value.split(',').map((s:string) => s.trim())" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-bold text-primary focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Jaar</label>
+                            <input v-model.number="albumData.year" type="number" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-medium text-slate-600 focus:ring-2 focus:ring-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Catalogus #</label>
+                            <input v-model="albumData.catalog_no" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-medium text-slate-600 focus:ring-2 focus:ring-primary">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Barcode</label>
+                        <input v-model="scannedCode" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-mono text-sm text-slate-500 focus:ring-2 focus:ring-primary">
                     </div>
                 </div>
 
                 <div class="space-y-4">
                     <!-- Media Type -->
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Media Type</label>
-                        <select v-model="mediaType" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary">
-                            <option v-for="t in mediaTypes" :key="t" :value="t">{{ t }}</option>
-                        </select>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Media Type</label>
+                            <select v-model="mediaType" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary">
+                                <option v-for="t in mediaTypes" :key="t" :value="t">{{ t }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">SPARS</label>
+                            <input v-model="albumData.spars_code" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary" placeholder="bijv. DDD">
+                        </div>
                     </div>
 
                     <!-- Location -->
@@ -313,6 +404,24 @@ onUnmounted(() => {
                                 {{ loc.name }} ({{ loc.storage_type }})
                             </option>
                         </select>
+                    </div>
+
+                    <!-- Genres -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Genres</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button 
+                                v-for="genre in allGenres" :key="genre.id"
+                                @click="albumData.genres.includes(genre.name) ? albumData.genres = albumData.genres.filter((n:string) => n !== genre.name) : albumData.genres.push(genre.name)"
+                                class="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                                :class="albumData.genres.includes(genre.name) ? 'bg-slate-600 text-white border-slate-600 shadow-sm' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'"
+                            >
+                                {{ genre.name }}
+                            </button>
+                            <div class="flex items-center gap-1 ml-1">
+                                <input @keyup.enter="(e:any) => { if (e.target.value) { albumData.genres.push(e.target.value); e.target.value = '' } }" placeholder="Nieuw..." class="w-20 p-1 text-xs bg-transparent border-b border-slate-300 dark:border-slate-600 focus:outline-none focus:border-primary">
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Tags -->
@@ -329,6 +438,12 @@ onUnmounted(() => {
                                 {{ tag.name }}
                             </button>
                         </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Notities</label>
+                        <textarea v-model="albumData.notes" rows="2" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary" placeholder="Eventuele opmerkingen..."></textarea>
                     </div>
                 </div>
 

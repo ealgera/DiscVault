@@ -126,9 +126,13 @@ class AlbumUpdate(SQLModel):
     notes: Optional[str] = None
     media_type: Optional[str] = None
     spars_code: Optional[str] = None
+    catalog_no: Optional[str] = None
+    upc_ean: Optional[str] = None
     location_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
     genre_ids: Optional[List[int]] = None
+    artist_names: Optional[List[str]] = None
+    cover_url: Optional[str] = None
 
 # --- Read Models (DTOs) ---
 class AlbumRead(AlbumBase):

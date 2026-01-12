@@ -1,9 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from sqlmodel import Session, select, text, func
 from sqlalchemy.orm import selectinload
 from typing import List
+import os
+import shutil
+from pathlib import Path
 
 from .database import create_db_and_tables, get_session, engine
 from .models import Album, Artist, Tag, Location, AlbumRead, AlbumCreate, AlbumUpdate, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, Genre, GenreRead, TagRead
@@ -43,8 +47,11 @@ def seed_data(session: Session):
         session.add(Tag(name="Favoriet", color="#ef4444")) # Red color
         session.commit()
 
+COVERS_DIR = Path("covers")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    COVERS_DIR.mkdir(exist_ok=True)
     create_db_and_tables()
     with Session(engine) as session:
         init_fts(session)
@@ -62,6 +69,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/covers", StaticFiles(directory="covers"), name="covers")
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to DiscVault API", "version": "1.0.0"}
@@ -77,7 +86,7 @@ def read_stats(session: Session = Depends(get_session)):
 @app.get("/constants")
 def read_constants():
     return {
-        "media_types": ['CD', 'Vinyl', 'SACD', 'Blu-ray Audio', 'Blu-ray Video', 'DVD Audio', 'Digital']
+        "media_types": ['CD', 'CD-Single', 'SACD', 'Blu-ray Video', 'Blu-ray Audio', 'DVD Audio', 'Digital', 'Vinyl']
     }
 
 @app.get("/search", response_model=List[AlbumRead])
@@ -214,6 +223,25 @@ async def lookup_barcode(barcode: str):
     if not result:
         raise HTTPException(status_code=404, detail="Barcode not found in MusicBrainz")
     return result
+
+@app.post("/albums/{album_id}/cover")
+async def upload_album_cover(album_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    album = crud.get_album(session, album_id)
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    
+    # Save file
+    file_extension = os.path.splitext(file.filename)[1]
+    file_path = COVERS_DIR / f"album_{album_id}{file_extension}"
+    
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Update DB
+    cover_url = f"/covers/{file_path.name}"
+    crud.update_album(session, album_id, AlbumUpdate(cover_url=cover_url))
+    
+    return {"cover_url": cover_url}
 
 # --- Relationships ---
 @app.post("/albums/{album_id}/artists/{artist_id}")

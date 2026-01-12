@@ -20,6 +20,12 @@ const stats = ref<Stats>({ albums: 0, artists: 0, genres: 0 })
 const recentAlbums = ref<Album[]>([])
 const error = ref('')
 
+function resolveCoverURL(url: string | undefined) {
+    if (!url) return undefined
+    if (url.startsWith('http')) return url
+    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 onMounted(async () => {
   try {
     // 1. Fetch Stats
@@ -125,7 +131,7 @@ onMounted(async () => {
         >
           <!-- Cover -->
           <div class="relative size-16 shrink-0 overflow-hidden rounded-lg shadow-sm bg-gray-200 flex items-center justify-center">
-            <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover" alt="Cover">
+            <img v-if="album.cover_url" :src="resolveCoverURL(album.cover_url)" class="w-full h-full object-cover" alt="Cover">
             <span v-else class="material-symbols-outlined text-gray-400">album</span>
           </div>
           

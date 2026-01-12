@@ -75,6 +75,21 @@ def update_album(session: Session, album_id: int, album_update: AlbumUpdate) -> 
         if genre_ids is not None:
             genres = session.exec(select(Genre).where(Genre.id.in_(genre_ids))).all()
             db_album.genres = genres
+
+    # Handle Artists
+    if "artist_names" in update_data:
+        artist_names = update_data.pop("artist_names")
+        if artist_names is not None:
+            artists = []
+            for name in artist_names:
+                artist = session.exec(select(Artist).where(Artist.name == name)).first()
+                if not artist:
+                    artist = Artist(name=name)
+                    session.add(artist)
+                    session.commit()
+                    session.refresh(artist)
+                artists.append(artist)
+            db_album.artists = artists
             
     # Update other fields
     for key, value in update_data.items():

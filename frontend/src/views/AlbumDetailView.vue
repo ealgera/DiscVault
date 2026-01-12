@@ -16,6 +16,7 @@ interface Album {
   tags?: { id: number, name: string, color: string }[]
   genres?: { id: number, name: string }[]
   catalog_no?: string
+  upc_ean?: string
   notes?: string
   media_type: string
   spars_code?: string
@@ -33,6 +34,8 @@ const locations = ref<any[]>([])
 const allTags = ref<any[]>([])
 const allGenres = ref<any[]>([])
 const editForm = ref<any>({})
+const selectedFile = ref<File | null>(null)
+const coverPreview = ref<string | null>(null)
 
 const mediaTypes = ref<string[]>([])
 
@@ -50,14 +53,18 @@ async function fetchAlbum() {
                 title: data.title,
                 year: data.year,
                 catalog_no: data.catalog_no,
+                upc_ean: data.upc_ean,
                 location_id: data.location?.id || null,
                 tag_ids: data.tags ? data.tags.map((t:any) => t.id) : [],
                 genre_ids: data.genres ? data.genres.map((g:any) => g.id) : [],
+                artist_names: data.artists ? data.artists.map((a:any) => a.name) : [],
                 notes: data.notes,
                 media_type: data.media_type || 'CD',
-                spars_code: data.spars_code || ''
+                spars_code: data.spars_code || '',
+                cover_url: data.cover_url
             }
-        } else {
+        }
+ else {
             error.value = 'Album niet gevonden'
         }
     } catch (e) {
@@ -88,8 +95,31 @@ async function fetchMetadata() {
     } catch(e) { console.error("Metadata fetch error:", e) }
 }
 
+function onCoverChange(e: any) {
+    const file = e.target.files[0]
+    if (file) {
+        selectedFile.value = file
+        coverPreview.value = URL.createObjectURL(file)
+    }
+}
+
 async function saveChanges() {
     try {
+        // 1. Handle Cover Upload if exists
+        if (selectedFile.value) {
+            const formData = new FormData()
+            formData.append('file', selectedFile.value)
+            const uploadRes = await fetch(`${import.meta.env.VITE_API_URL}/albums/${albumId}/cover`, {
+                method: 'POST',
+                body: formData
+            })
+            if (uploadRes.ok) {
+                const uploadData = await uploadRes.json()
+                editForm.value.cover_url = uploadData.cover_url
+            }
+        }
+
+        // 2. Save rest of metadata
         const response = await fetch(`${import.meta.env.VITE_API_URL}/albums/${albumId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -99,6 +129,8 @@ async function saveChanges() {
         if (response.ok) {
             await fetchAlbum()
             isEditing.value = false
+            selectedFile.value = null
+            coverPreview.value = null
         } else {
             alert('Opslaan mislukt')
         }
@@ -175,6 +207,12 @@ function startEdit() {
     isEditing.value = true
 }
 
+function resolveCoverURL(url: string | undefined) {
+    if (!url) return undefined
+    if (url.startsWith('http')) return url
+    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 onMounted(() => {
     fetchAlbum()
 })
@@ -213,7 +251,7 @@ onMounted(() => {
         <!-- COVER & TITLE -->
         <div class="flex flex-col items-center text-center relative">
             <div class="relative w-64 h-64 mb-6 rounded-2xl shadow-xl overflow-hidden bg-white">
-                <img v-if="album.cover_url" :src="album.cover_url" class="w-full h-full object-cover" :alt="album.title">
+                <img v-if="album.cover_url" :src="resolveCoverURL(album.cover_url)" class="w-full h-full object-cover" :alt="album.title">
                 <div v-else class="w-full h-full bg-gray-200 flex items-center justify-center">
                     <span class="material-symbols-outlined text-6xl text-gray-400">album</span>
                 </div>
@@ -290,6 +328,14 @@ onMounted(() => {
             <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2 text-slate-400">
                     <span class="material-symbols-outlined text-[18px]">barcode</span>
+                    <span class="text-xs font-bold uppercase">Barcode (UPC/EAN)</span>
+                </div>
+                <p class="font-bold text-slate-900 dark:text-white">{{ album.upc_ean || '-' }}</p>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2 text-slate-400">
+                    <span class="material-symbols-outlined text-[18px]">tag</span>
                     <span class="text-xs font-bold uppercase">Catalogus #</span>
                 </div>
                 <p class="font-bold text-slate-900 dark:text-white">{{ album.catalog_no || '-' }}</p>
@@ -329,27 +375,57 @@ onMounted(() => {
         <div v-else class="flex flex-col gap-4 animate-in fade-in bg-white dark:bg-surface-dark p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
             <h3 class="font-bold text-lg mb-2 dark:text-white">Album Bewerken</h3>
             
+            <!-- Cover Upload -->
+            <div class="flex items-center gap-4 mb-2">
+                <div class="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
+                    <img v-if="coverPreview || editForm.cover_url" :src="coverPreview || resolveCoverURL(editForm.cover_url)" class="w-full h-full object-cover">
+                    <div v-else class="w-full h-full flex items-center justify-center">
+                        <span class="material-symbols-outlined text-slate-400">image</span>
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Cover Art</label>
+                    <input type="file" @change="onCoverChange" accept="image/*" class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
+                </div>
+            </div>
+
             <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Titel</label>
                 <input v-model="editForm.title" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-bold text-slate-900 dark:text-white focus:ring-primary">
             </div>
 
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Artist(s) <span class="text-[10px] lowercase font-normal">(komma gescheiden)</span></label>
+                <input :value="editForm.artist_names?.join(', ')" @input="(e:any) => editForm.artist_names = e.target.value.split(',').map((s:string) => s.trim())" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-bold text-primary focus:ring-primary">
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Jaar</label>
+                    <input v-model.number="editForm.year" type="number" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Media Type</label>
                     <select v-model="editForm.media_type" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
                         <option v-for="t in mediaTypes" :key="t" :value="t">{{ t }}</option>
                     </select>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">SPARS Code</label>
-                    <input v-model="editForm.spars_code" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary" placeholder="bijv. DDD">
-                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">SPARS Code</label>
+                <input v-model="editForm.spars_code" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary" placeholder="bijv. DDD">
             </div>
             
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Catalogus Nr.</label>
-                <input v-model="editForm.catalog_no" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Catalogus Nr.</label>
+                    <input v-model="editForm.catalog_no" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Barcode (UPC/EAN)</label>
+                    <input v-model="editForm.upc_ean" type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                </div>
             </div>
             
             <div>

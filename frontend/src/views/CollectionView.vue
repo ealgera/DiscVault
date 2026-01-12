@@ -62,6 +62,12 @@ function setFilter(filter: string) {
     }
 }
 
+function resolveCoverURL(url: string | undefined) {
+    if (!url) return undefined
+    if (url.startsWith('http')) return url
+    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 function goToDetail(id: number) {
     router.push(`/albums/${id}`)
 }
@@ -129,7 +135,7 @@ onMounted(() => {
           <div class="w-16 h-16 bg-gray-200 dark:bg-slate-800 rounded flex-shrink-0 overflow-hidden relative">
             <img 
               v-if="album.cover_url" 
-              :src="album.cover_url" 
+              :src="resolveCoverURL(album.cover_url)" 
               alt="Cover" 
               class="w-full h-full object-cover"
               loading="lazy"
