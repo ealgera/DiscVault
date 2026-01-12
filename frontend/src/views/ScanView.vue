@@ -60,7 +60,8 @@ function manualAdd() {
         media_type: 'CD',
         spars_code: '',
         notes: '',
-        upc_ean: ''
+        upc_ean: '',
+        tracks: []
     }
     selectedTagIds.value = []
     selectedLocationId.value = null
@@ -217,7 +218,8 @@ async function saveAlbum() {
                 genre_names: albumData.value.genres,
                 media_type: mediaType.value,
                 notes: albumData.value.notes,
-                spars_code: albumData.value.spars_code
+                spars_code: albumData.value.spars_code,
+                tracks: albumData.value.tracks
             })
         })
         
@@ -248,9 +250,41 @@ async function saveAlbum() {
 function resolveCoverURL(url: string | undefined) {
     if (!url) return undefined
     if (url.startsWith('http')) return url
-    // If it starts with /covers, it's a local file served by the backend
-    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+    const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '')
+    const path = url.startsWith('/') ? url : `/${url}`
+    return `${baseUrl}${path}`
 }
+
+function addTrack() {
+    if (!albumData.value.tracks) albumData.value.tracks = []
+    const lastTrack = albumData.value.tracks[albumData.value.tracks.length - 1]
+    const nextDisc = lastTrack ? lastTrack.disc_no : 1
+    const nextNo = lastTrack ? lastTrack.track_no + 1 : 1
+    
+    albumData.value.tracks.push({
+        track_no: nextNo,
+        title: '',
+        duration: '',
+        disc_no: nextDisc,
+        disc_name: lastTrack ? lastTrack.disc_name : 'Format'
+    })
+}
+
+function removeTrack(index: number) {
+    albumData.value.tracks.splice(index, 1)
+}
+
+const tracksByDisc = computed(() => {
+    if (!albumData.value?.tracks) return {}
+    return albumData.value.tracks.reduce((acc: any, track: any, index: number) => {
+        const d = track.disc_no || 1
+        if (!acc[d]) acc[d] = []
+        // We add the original index but keep the original object reference
+        track._originalIndex = index 
+        acc[d].push(track)
+        return acc
+    }, {})
+})
 
 onMounted(() => {
     startCamera()
@@ -444,6 +478,39 @@ onUnmounted(() => {
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Notities</label>
                         <textarea v-model="albumData.notes" rows="2" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary" placeholder="Eventuele opmerkingen..."></textarea>
+                    </div>
+
+                    <!-- Tracklist -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">Tracklist</label>
+                            <button @click="addTrack" class="text-xs font-bold text-primary flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">add_circle</span>
+                                Track toevoegen
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div v-for="(tracks, disc) in tracksByDisc" :key="disc" class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-[10px] font-black uppercase text-slate-400">Disc {{ disc }}</span>
+                                    <input v-model="tracks[0].disc_name" placeholder="Naam (bijv. CD1)" class="text-[10px] font-bold bg-transparent border-b border-transparent focus:border-primary uppercase text-slate-500">
+                                </div>
+                                <div class="space-y-2">
+                                    <div v-for="track in tracks" :key="track._originalIndex" class="flex gap-2 items-center">
+                                        <input v-model.number="track.track_no" type="number" class="w-8 text-center bg-white dark:bg-slate-800 rounded p-1 text-xs border-none focus:ring-1 focus:ring-primary font-bold">
+                                        <input v-model="track.title" placeholder="Titel" class="flex-1 bg-white dark:bg-slate-800 rounded p-1 text-xs border-none focus:ring-1 focus:ring-primary font-medium">
+                                        <input v-model="track.duration" placeholder="0:00" class="w-12 bg-white dark:bg-slate-800 rounded p-1 text-[10px] border-none focus:ring-1 focus:ring-primary text-slate-500">
+                                        <button @click="removeTrack(track._originalIndex)" class="text-slate-300 hover:text-red-500">
+                                            <span class="material-symbols-outlined text-sm">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="!albumData.tracks || albumData.tracks.length === 0" class="text-center py-4 text-xs text-slate-400 italic">
+                                Geen tracks toegevoegd.
+                            </div>
+                        </div>
                     </div>
                 </div>
 

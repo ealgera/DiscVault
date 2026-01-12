@@ -47,7 +47,7 @@ def seed_data(session: Session):
         session.add(Tag(name="Favoriet", color="#ef4444")) # Red color
         session.commit()
 
-COVERS_DIR = Path("covers")
+COVERS_DIR = Path(__file__).parent.parent / "covers"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,7 +69,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/covers", StaticFiles(directory="covers"), name="covers")
+app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
 
 @app.get("/")
 def read_root():

@@ -49,6 +49,11 @@ def create_album(session: Session, album_create: AlbumCreate) -> Album:
                 session.refresh(genre)
             genres.append(genre)
         db_album.genres = genres
+        
+    # Handle Tracks
+    if album_create.tracks:
+        db_tracks = [Track(**t.model_dump(), album=db_album) for t in album_create.tracks]
+        db_album.tracks = db_tracks
 
     session.add(db_album)
     session.commit()
@@ -90,6 +95,22 @@ def update_album(session: Session, album_id: int, album_update: AlbumUpdate) -> 
                     session.refresh(artist)
                 artists.append(artist)
             db_album.artists = artists
+            
+    # Handle Tracks
+    if "tracks" in update_data:
+        new_tracks = update_data.pop("tracks")
+        if new_tracks is not None:
+            # Simple approach: Replace tracklist
+            # Delete old tracks
+            session.exec(text("DELETE FROM tracks WHERE album_id = :id"), params={"id": album_id})
+            # Add new tracks
+            db_tracks = []
+            for t in new_tracks:
+                # Strip extra fields like _originalIndex and ensure album_id is set
+                clean_track = {k: v for k, v in t.items() if k in Track.model_fields}
+                clean_track["album_id"] = album_id
+                db_tracks.append(Track(**clean_track))
+            db_album.tracks = db_tracks
             
     # Update other fields
     for key, value in update_data.items():

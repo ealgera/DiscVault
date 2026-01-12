@@ -23,7 +23,9 @@ const error = ref('')
 function resolveCoverURL(url: string | undefined) {
     if (!url) return undefined
     if (url.startsWith('http')) return url
-    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+    const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '')
+    const path = url.startsWith('/') ? url : `/${url}`
+    return `${baseUrl}${path}`
 }
 
 onMounted(async () => {

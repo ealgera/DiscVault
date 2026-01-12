@@ -21,7 +21,7 @@ interface Album {
   media_type: string
   spars_code?: string
   created_at: string
-  tracks?: { track_no: number, title: string, duration: string }[]
+  tracks?: { track_no: number, title: string, duration: string, disc_no: number, disc_name?: string }[]
 }
 
 const album = ref<Album | null>(null)
@@ -61,7 +61,8 @@ async function fetchAlbum() {
                 notes: data.notes,
                 media_type: data.media_type || 'CD',
                 spars_code: data.spars_code || '',
-                cover_url: data.cover_url
+                cover_url: data.cover_url,
+                tracks: data.tracks || []
             }
         }
  else {
@@ -210,8 +211,50 @@ function startEdit() {
 function resolveCoverURL(url: string | undefined) {
     if (!url) return undefined
     if (url.startsWith('http')) return url
-    return `${import.meta.env.VITE_API_URL}${url.startsWith('/') ? '' : '/'}${url}`
+    const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '')
+    const path = url.startsWith('/') ? url : `/${url}`
+    return `${baseUrl}${path}`
 }
+
+function addTrack() {
+    if (!editForm.value.tracks) editForm.value.tracks = []
+    const lastTrack = editForm.value.tracks[editForm.value.tracks.length - 1]
+    const nextDisc = lastTrack ? lastTrack.disc_no : 1
+    const nextNo = lastTrack ? lastTrack.track_no + 1 : 1
+    
+    editForm.value.tracks.push({
+        track_no: nextNo,
+        title: '',
+        duration: '',
+        disc_no: nextDisc,
+        disc_name: lastTrack ? lastTrack.disc_name : 'Format'
+    })
+}
+
+function removeTrack(index: number) {
+    editForm.value.tracks.splice(index, 1)
+}
+
+const viewTracksByDisc = computed(() => {
+    if (!album.value?.tracks) return {}
+    return album.value.tracks.reduce((acc: any, track: any) => {
+        const d = track.disc_no || 1
+        if (!acc[d]) acc[d] = []
+        acc[d].push(track)
+        return acc
+    }, {})
+})
+
+const editTracksByDisc = computed(() => {
+    if (!editForm.value?.tracks) return {}
+    return editForm.value.tracks.reduce((acc: any, track: any, index: number) => {
+        const d = track.disc_no || 1
+        if (!acc[d]) acc[d] = []
+        track._originalIndex = index
+        acc[d].push(track)
+        return acc
+    }, {})
+})
 
 onMounted(() => {
     fetchAlbum()
@@ -470,21 +513,62 @@ onMounted(() => {
                  <textarea v-model="editForm.notes" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-700 dark:text-white focus:ring-primary" rows="3"></textarea>
             </div>
 
+            <!-- Tracklist Management -->
+            <div class="mt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-bold text-slate-500 uppercase">Tracklist</label>
+                    <button @click="addTrack" class="text-xs font-bold text-primary flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                        Track toevoegen
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div v-for="(tracks, disc) in editTracksByDisc" :key="disc" class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-[10px] font-black uppercase text-slate-400">Disc {{ disc }}</span>
+                            <input v-model="tracks[0].disc_name" placeholder="Naam" class="text-[10px] font-bold bg-transparent border-b border-transparent focus:border-primary uppercase text-slate-500">
+                        </div>
+                        <div class="space-y-2">
+                            <div v-for="track in tracks" :key="track._originalIndex" class="flex gap-2 items-center">
+                                <input v-model.number="track.track_no" type="number" class="w-8 text-center bg-white dark:bg-slate-800 rounded p-1 text-xs border-none focus:ring-1 focus:ring-primary font-bold">
+                                <input v-model="track.title" placeholder="Titel" class="flex-1 bg-white dark:bg-slate-800 rounded p-1 text-xs border-none focus:ring-1 focus:ring-primary font-medium">
+                                <input v-model="track.duration" placeholder="0:00" class="w-12 bg-white dark:bg-slate-800 rounded p-1 text-[10px] border-none focus:ring-1 focus:ring-primary text-slate-500">
+                                <button @click="removeTrack(track._originalIndex)" class="text-slate-300 hover:text-red-500">
+                                    <span class="material-symbols-outlined text-sm">delete</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="flex gap-3 pt-2">
                 <button @click="isEditing = false" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Annuleren</button>
                 <button @click="saveChanges" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30">Opslaan</button>
             </div>
         </div>
 
-        <!-- TRACKLIST -->
+        <!-- TRACKLIST VIEW -->
         <div v-if="!isEditing">
             <h3 class="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wide mb-3">Tracklist</h3>
-            <div class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
-                
-                <!-- Placeholder Tracks -->
-                <div class="p-4 flex items-center gap-4 text-slate-400 italic text-sm justify-center">
-                    <span class="material-symbols-outlined">playlist_play</span>
-                    <span>Tracklist data volgt in update</span>
+            <div class="space-y-4">
+                <div v-for="(tracks, disc) in viewTracksByDisc" :key="disc" class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                    <div class="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                        <span class="text-[10px] font-black uppercase text-slate-500 tracking-wider">Disc {{ disc }}</span>
+                        <span v-if="tracks[0].disc_name" class="text-[10px] font-bold uppercase text-primary">{{ tracks[0].disc_name }}</span>
+                    </div>
+                    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+                        <div v-for="track in tracks" :key="track.track_no" class="p-4 flex items-center gap-4 group">
+                            <span class="text-xs font-bold text-slate-300 w-4">{{ track.track_no }}</span>
+                            <span class="flex-1 font-medium text-slate-700 dark:text-slate-200 text-sm group-hover:text-primary transition-colors">{{ track.title }}</span>
+                            <span v-if="track.duration" class="text-[10px] font-mono text-slate-400">{{ track.duration }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="!album.tracks || album.tracks.length === 0" class="bg-white dark:bg-surface-dark rounded-2xl p-8 border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-2 text-slate-400">
+                    <span class="material-symbols-outlined text-4xl opacity-30">playlist_play</span>
+                    <p class="text-xs italic">Geen tracks bekend.</p>
                 </div>
             </div>
         </div>

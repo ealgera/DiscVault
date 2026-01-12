@@ -79,6 +79,8 @@ class TrackBase(SQLModel):
     track_no: int
     title: str
     duration: Optional[str] = None
+    disc_no: int = 1
+    disc_name: Optional[str] = None
 
 class Track(TrackBase, table=True):
     __tablename__ = "tracks"
@@ -119,6 +121,7 @@ class AlbumCreate(AlbumBase):
     tag_ids: List[int] = []
     artist_names: List[str] = []
     genre_names: List[str] = []
+    tracks: List[TrackBase] = []
 
 class AlbumUpdate(SQLModel):
     title: Optional[str] = None
@@ -133,6 +136,7 @@ class AlbumUpdate(SQLModel):
     genre_ids: Optional[List[int]] = None
     artist_names: Optional[List[str]] = None
     cover_url: Optional[str] = None
+    tracks: Optional[List[TrackBase]] = None
 
 # --- Read Models (DTOs) ---
 class AlbumRead(AlbumBase):

@@ -5,7 +5,9 @@
 *.db
 
 # Pictures
+*.jpg
 *.png
+covers/
 
 # Virtual Environment
 .venv/

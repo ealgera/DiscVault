@@ -30,33 +30,51 @@ async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]
             release = releases[0]
             mbid = release.get("id")
             
-            # To get better genres, we might need a separate call to the release-group or use tags from the release
-            # For simplicity, we check if tags are in the release object or fetch release-group tags
-            genres = []
-            release_group = release.get("release-group", {})
-            rg_id = release_group.get("id")
-            
-            if rg_id:
+            # To get better genres and TRACKS, we need a detailed lookup
+            # inc=recordings+media gives us the tracklist
+            # inc=tags/release-groups gives us genres
+            tracks = []
+            if mbid:
                 try:
-                    rg_url = f"{MUSICBRAINZ_API}/release-group/{rg_id}"
-                    rg_params = {"inc": "tags", "fmt": "json"}
-                    rg_res = await client.get(rg_url, params=rg_params, headers=headers)
-                    if rg_res.status_code == 200:
-                        rg_data = rg_res.json()
-                        # Sort tags by count to get best genres
-                        tags = rg_data.get("tags", [])
+                    detail_url = f"{MUSICBRAINZ_API}/release/{mbid}"
+                    detail_params = {"inc": "recordings+media+tags+release-groups", "fmt": "json"}
+                    detail_res = await client.get(detail_url, params=detail_params, headers=headers)
+                    if detail_res.status_code == 200:
+                        detail_data = detail_res.json()
+                        
+                        # 1. Genres from release-group or release tags
+                        tags = detail_data.get("tags", [])
+                        if not tags:
+                            tags = detail_data.get("release-group", {}).get("tags", [])
+                        
                         if tags:
-                            # Filter tags that are likely genres (MusicBrainz tags are messy)
-                            # We take top 3 tags as genres
                             tags.sort(key=lambda x: x.get("count", 0), reverse=True)
                             genres = [t.get("name").title() for t in tags[:5]]
+                        
+                        # 2. Tracks from media (discs)
+                        media_list = detail_data.get("media", [])
+                        for i, media in enumerate(media_list):
+                            disc_no = i + 1
+                            disc_format = media.get("format", f"Disc {disc_no}")
+                            for track in media.get("tracks", []):
+                                duration_ms = track.get("length")
+                                duration_str = None
+                                if duration_ms:
+                                    s = duration_ms // 1000
+                                    m, s = divmod(s, 60)
+                                    duration_str = f"{m}:{s:02d}"
+                                
+                                tracks.append({
+                                    "track_no": int(track.get("number", "0")),
+                                    "title": track.get("recording", {}).get("title") or track.get("title"),
+                                    "duration": duration_str,
+                                    "disc_no": disc_no,
+                                    "disc_name": disc_format
+                                })
                 except Exception as e:
-                    print(f"Error fetching genres: {e}")
-                    # Continue without genres
+                    print(f"Error fetching MB details: {e}")
 
-            # Check Cover Art Archive (Optimistic check, or just construct URL)
-            # We use the 'front-500' thumbnail for better performance (original can be huge)
-            # Or even 'front-250' if we want it super fast for mobile lists.
+            # Check Cover Art Archive 
             cover_url = f"https://coverartarchive.org/release/{mbid}/front-250" if mbid else None
 
             # Map MB data to our internal format
@@ -68,7 +86,8 @@ async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]
                 "barcode": barcode,
                 "mbid": mbid,
                 "catalog_no": release.get("label-info", [{}])[0].get("catalog-number") if release.get("label-info") else None,
-                "cover_url": cover_url
+                "cover_url": cover_url,
+                "tracks": tracks
             }
             return result
         except httpx.RequestError as e:
