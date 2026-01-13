@@ -260,3 +260,33 @@ def add_artist_to_album(session: Session, album_id: int, artist_id: int, role: O
     session.commit()
     session.refresh(link)
     return link
+
+def check_duplicate_album(session: Session, title: str, artist_names: List[str], upc_ean: Optional[str] = None) -> List[Album]:
+    """
+    Checks if an album already exists by barcode or Title + Artists combination.
+    """
+    results = []
+    
+    # 1. Check by barcode (highest confidence)
+    if upc_ean:
+        stmt = select(Album).where(Album.upc_ean == upc_ean).options(selectinload(Album.artists))
+        barcode_matches = session.exec(stmt).all()
+        for m in barcode_matches:
+            if m not in results:
+                results.append(m)
+                
+    # 2. Check by Title + Artists (case insensitive title, exact artist match)
+    if title and artist_names:
+        # Get albums with matching title first
+        stmt = select(Album).where(func.lower(Album.title) == title.lower()).options(selectinload(Album.artists))
+        title_matches = session.exec(stmt).all()
+        
+        for album in title_matches:
+            album_artist_names = [a.name for a in album.artists]
+            # Check if all provided artists are in the album's artists (simplification)
+            # or if the lists match exactly
+            if sorted(album_artist_names) == sorted(artist_names):
+                if album not in results:
+                    results.append(album)
+                    
+    return results

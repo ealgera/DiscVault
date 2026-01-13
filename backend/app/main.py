@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -139,6 +139,15 @@ def search_albums(q: str, filter: str = "all", sort_by: str = "created_at", orde
 @app.post("/albums/", response_model=Album)
 def create_album(album: AlbumCreate, session: Session = Depends(get_session)):
     return crud.create_album(session=session, album_create=album)
+
+@app.get("/albums/check-duplicate", response_model=List[AlbumRead])
+def check_duplicate(
+    title: str, 
+    artist_names: List[str] = Query([]), 
+    upc_ean: Optional[str] = None, 
+    session: Session = Depends(get_session)
+):
+    return crud.check_duplicate_album(session, title=title, artist_names=artist_names, upc_ean=upc_ean)
 
 @app.get("/albums/", response_model=List[AlbumRead])
 def read_albums(offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", session: Session = Depends(get_session)):

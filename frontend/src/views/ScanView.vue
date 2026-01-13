@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useRouter } from 'vue-router'
 
@@ -187,6 +187,7 @@ async function fetchAlbumData(barcode: string) {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/lookup/${barcode}`)
         if (response.ok) {
             albumData.value = await response.json()
+            checkDuplicates()
         } else {
             error.value = "Album niet gevonden in MusicBrainz."
         }
@@ -285,6 +286,36 @@ const tracksByDisc = computed(() => {
         return acc
     }, {})
 })
+
+const potentialDuplicates = ref<any[]>([])
+
+async function checkDuplicates() {
+    if (!albumData.value || !albumData.value.title) {
+        potentialDuplicates.value = []
+        return
+    }
+    
+    try {
+        const params = new URLSearchParams()
+        params.append('title', albumData.value.title)
+        if (scannedCode.value) params.append('upc_ean', scannedCode.value)
+        if (albumData.value.artists) {
+            albumData.value.artists.forEach((a: string) => params.append('artist_names', a))
+        }
+        
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/albums/check-duplicate?${params.toString()}`)
+        if (response.ok) {
+            potentialDuplicates.value = await response.json()
+        }
+    } catch (e) {
+        console.error("Duplicate check failed", e)
+    }
+}
+
+// Watch for manual changes to title or artists
+watch([() => albumData.value?.title, () => albumData.value?.artists], () => {
+    checkDuplicates()
+}, { deep: true })
 
 onMounted(() => {
     startCamera()
@@ -398,6 +429,28 @@ onUnmounted(() => {
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Artist(s) <span class="text-[10px] lowercase font-normal">(komma gescheiden)</span></label>
                         <input :value="albumData.artists.join(', ')" @input="(e:any) => albumData.artists = e.target.value.split(',').map((s:string) => s.trim())" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-bold text-primary focus:ring-2 focus:ring-primary">
                     </div>
+
+                    <!-- Duplicate Warning -->
+                    <div v-if="potentialDuplicates.length > 0" class="animate-in fade-in zoom-in duration-300">
+                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2">
+                                <span class="material-symbols-outlined text-[20px]">warning</span>
+                                <span class="font-bold text-sm tracking-tight">Potentiële Duplicaten Gevonden</span>
+                            </div>
+                            <div class="space-y-2">
+                                <div v-for="dup in potentialDuplicates" :key="dup.id" class="flex items-center gap-2.5 bg-white/50 dark:bg-black/20 p-1.5 rounded-lg border border-amber-100 dark:border-amber-900/20">
+                                    <img v-if="dup.cover_url" :src="resolveCoverURL(dup.cover_url)" class="w-8 h-8 rounded shadow-sm object-cover">
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-[10px] font-black uppercase text-amber-800 dark:text-amber-200 truncate leading-tight">{{ dup.title }}</p>
+                                        <p class="text-[9px] text-amber-600 dark:text-amber-400 truncate font-semibold">
+                                            {{ dup.artists.map((a:any) => a.name).join(', ') }} ({{ dup.year || '?' }})
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Jaar</label>
