@@ -34,6 +34,7 @@ async def lookup_musicbrainz_by_barcode(barcode: str) -> Optional[Dict[str, Any]
             # inc=recordings+media gives us the tracklist
             # inc=tags/release-groups gives us genres
             tracks = []
+            genres = []
             if mbid:
                 try:
                     detail_url = f"{MUSICBRAINZ_API}/release/{mbid}"

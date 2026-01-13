@@ -450,15 +450,9 @@ onMounted(() => {
             <h3 class="font-bold text-lg mb-2 dark:text-white">Album Bewerken</h3>
             
             <!-- Cover Upload -->
-            <div class="flex items-center gap-4 mb-2">
-                <div class="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
-                    <img v-if="coverPreview || editForm.cover_url" :src="coverPreview || resolveCoverURL(editForm.cover_url)" class="w-full h-full object-cover">
-                    <div v-else class="w-full h-full flex items-center justify-center">
-                        <span class="material-symbols-outlined text-slate-400">image</span>
-                    </div>
-                </div>
-                <div class="flex-1">
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Cover Art</label>
+            <div class="mb-2">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cover Art wijzigen</label>
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                     <input type="file" @change="onCoverChange" accept="image/*" class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
                 </div>
             </div>

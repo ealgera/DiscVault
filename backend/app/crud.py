@@ -16,8 +16,8 @@ def get_stats(session: Session):
 
 # --- Albums ---
 def create_album(session: Session, album_create: AlbumCreate) -> Album:
-    # Convert AlbumCreate DTO to Album table model
-    db_album = Album.model_validate(album_create)
+    # Convert AlbumCreate DTO to Album table model, excluding relationships handled manually
+    db_album = Album.model_validate(album_create.model_dump(exclude={"tracks", "artist_names", "genre_names", "tag_ids"}))
     
     # Handle Tags
     if album_create.tag_ids:

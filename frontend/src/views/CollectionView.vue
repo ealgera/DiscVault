@@ -128,19 +128,10 @@ onMounted(() => {
         >
       </div>
 
-      <!-- Filters & Sorting -->
-      <div class="flex items-center gap-2 mt-3 px-4">
-        <!-- Scrolling Filters -->
-        <div class="flex-1 flex gap-2 overflow-x-auto no-scrollbar py-1">
-          <button 
-              v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag']" 
-              :key="f"
-              @click="setFilter(f)"
-              class="px-3 py-1.5 rounded-full text-xs font-bold border transition-colors whitespace-nowrap shadow-sm"
-              :class="searchFilter === f ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-surface-dark text-slate-500 border-slate-200 dark:border-slate-700'"
-          >
-              {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f.charAt(0).toUpperCase() + f.slice(1) }}
-          </button>
+      <!-- Top Bar: Results Count & Sorting -->
+      <div class="flex items-center justify-between px-4 mt-4">
+        <div class="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+            {{ loading ? 'Zoeken...' : `${albums.length} Albums` }}
         </div>
         
         <!-- Sorting Toggle -->
@@ -179,6 +170,19 @@ onMounted(() => {
                 </button>
             </div>
         </div>
+      </div>
+
+      <!-- Filters Row -->
+      <div class="flex items-center gap-2 mt-3 px-4 overflow-x-auto no-scrollbar py-1">
+        <button 
+            v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag']" 
+            :key="f"
+            @click="setFilter(f)"
+            class="px-3 py-1.5 rounded-full text-xs font-bold border transition-colors whitespace-nowrap shadow-sm"
+            :class="searchFilter === f ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-surface-dark text-slate-500 border-slate-200 dark:border-slate-700'"
+        >
+            {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f.charAt(0).toUpperCase() + f.slice(1) }}
+        </button>
       </div>
     </div>
 
