@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Configuratie
-VERSION="1.0.0"
+VERSION="1.5.0"
 APP_NAME="discvault"
-REGISTRY=""
+REGISTRY="ealgera"
 
 get_image_name() {
     if [ -z "$REGISTRY" ]; then
