@@ -45,6 +45,11 @@ const router = createRouter({
       name: 'genres',
       component: GenreView,
     },
+    {
+      path: '/management',
+      name: 'management',
+      component: () => import('../views/ManagementView.vue'),
+    },
   ],
 })
 

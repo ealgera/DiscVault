@@ -35,11 +35,13 @@ import { RouterLink } from 'vue-router'
         <span class="text-[10px]">Locaties</span>
       </RouterLink>
 
-      <!-- Settings -->
-      <button class="flex flex-col items-center gap-1 p-2 min-w-[64px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-        <span class="material-symbols-outlined">settings</span>
-        <span class="text-[10px]">Settings</span>
-      </button>
+      <!-- Settings/Management -->
+      <RouterLink to="/management" 
+        class="flex flex-col items-center gap-1 p-2 min-w-[64px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" 
+        active-class="text-primary font-bold">
+        <span class="material-symbols-outlined" :class="{ 'icon-filled': $route.path === '/management' }">settings</span>
+        <span class="text-[10px]">Beheer</span>
+      </RouterLink>
 
     </div>
   </nav>

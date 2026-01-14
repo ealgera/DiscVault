@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Query
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -8,6 +8,11 @@ from typing import List, Optional
 import os
 import shutil
 from pathlib import Path
+import zipfile
+import tempfile
+import json
+from datetime import datetime
+from fastapi.responses import FileResponse
 
 from .database import create_db_and_tables, get_session, engine
 from .models import Album, Artist, Tag, Location, AlbumRead, AlbumCreate, AlbumUpdate, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, Genre, GenreRead, TagRead
@@ -47,7 +52,9 @@ def seed_data(session: Session):
         session.add(Tag(name="Favoriet", color="#ef4444")) # Red color
         session.commit()
 
-COVERS_DIR = Path(__file__).parent.parent / "covers"
+default_data_dir = Path(__file__).parent.parent.parent / "data"
+data_dir = os.getenv("DATA_DIR", str(default_data_dir))
+COVERS_DIR = Path(data_dir) / "covers"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -309,6 +316,95 @@ def link_artist_to_album(album_id: int, artist_id: int, role: str = "Main", sess
     # In a real app check for artist too and duplicates
     
     return crud.add_artist_to_album(session=session, album_id=album_id, artist_id=artist_id, role=role)
+
+# --- Backup & Restore ---
+@app.get("/export")
+def export_collection(background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    """
+    Export the entire collection (database + covers) as a ZIP file.
+    """
+    temp_dir = tempfile.mkdtemp()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_filename = f"discvault_backup_{timestamp}.zip"
+    zip_path = os.path.join(temp_dir, zip_filename)
+    
+    from .database import sqlite_file_name
+    db_path = sqlite_file_name
+    
+    # 2. Create manifest
+    album_count = session.exec(select(func.count(Album.id))).one()
+    manifest = {
+        "version": "1.5.0",
+        "date": datetime.now().isoformat(),
+        "album_count": album_count
+    }
+    
+    try:
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add DB
+            if os.path.exists(db_path):
+                zip_file.write(db_path, "discvault.db")
+            
+            # Add Covers
+            if os.path.exists(COVERS_DIR):
+                for root, dirs, files in os.walk(COVERS_DIR):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.join("covers", os.path.relpath(file_path, COVERS_DIR))
+                        zip_file.write(file_path, arcname)
+            
+            # Add manifest
+            manifest_path = os.path.join(temp_dir, "manifest.json")
+            with open(manifest_path, 'w') as f:
+                json.dump(manifest, f)
+            zip_file.write(manifest_path, "manifest.json")
+
+        background_tasks.add_task(lambda: shutil.rmtree(temp_dir))
+        return FileResponse(zip_path, filename=zip_filename, media_type="application/zip")
+    except Exception as e:
+        shutil.rmtree(temp_dir)
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@app.post("/import")
+async def import_collection(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    """
+    Restore the collection from a ZIP backup. WARNING: Overwrites current data.
+    """
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Ongeldig bestandstype. Upload een ZIP-bestand.")
+    
+    temp_dir = tempfile.mkdtemp()
+    zip_path = os.path.join(temp_dir, "import.zip")
+    
+    try:
+        with open(zip_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+            
+        # Validate
+        import_db_path = os.path.join(temp_dir, "discvault.db")
+        if not os.path.exists(import_db_path):
+             raise HTTPException(status_code=400, detail="Ongeldige backup: discvault.db ontbreekt.")
+        
+        # Replace Covers
+        import_covers_dir = os.path.join(temp_dir, "covers")
+        if os.path.exists(import_covers_dir):
+            if os.path.exists(COVERS_DIR):
+                shutil.rmtree(COVERS_DIR)
+            shutil.copytree(import_covers_dir, COVERS_DIR)
+            
+        # Replace DB
+        from .database import sqlite_file_name
+        shutil.copy(import_db_path, sqlite_file_name)
+        
+        return {"message": "Import succesvol. Herlaad de app."}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Import mislukt: {str(e)}")
+    finally:
+        shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
     import uvicorn

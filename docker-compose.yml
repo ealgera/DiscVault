@@ -4,10 +4,9 @@ services:
     container_name: discvault-backend
     restart: unless-stopped
     environment:
-      - DB_PATH=/data/discvault.db
+      - DATA_DIR=/data
     volumes:
       - ./data:/data
-      - ./covers:/app/covers
     expose:
       - "8000"
 
