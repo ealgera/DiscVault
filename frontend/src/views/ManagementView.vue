@@ -25,7 +25,11 @@ async function exportCollection() {
             const contentDisposition = response.headers.get('Content-Disposition')
             let filename = 'discvault_backup.zip'
             if (contentDisposition && contentDisposition.includes('filename=')) {
-                filename = contentDisposition.split('filename=')[1].replace(/"/g, '')
+                const parts = contentDisposition.split('filename=')
+                const fileNamePart = parts[1]
+                if (fileNamePart) {
+                    filename = fileNamePart.replace(/"/g, '')
+                }
             }
             
             a.download = filename
@@ -82,6 +86,10 @@ async function importCollection() {
     } finally {
         importing.value = false
     }
+}
+
+function reloadApp() {
+    window.location.reload()
 }
 </script>
 
@@ -179,7 +187,7 @@ async function importCollection() {
                 <p class="text-sm text-slate-600 dark:text-slate-400 mb-4 text-balance">
                     De database en covers zijn succesvol hersteld. Herlaad de app om alles te zien.
                 </p>
-                <button @click="window.location.reload()" class="px-6 py-2 bg-primary text-white font-bold rounded-full text-sm">
+                <button @click="reloadApp" class="px-6 py-2 bg-primary text-white font-bold rounded-full text-sm">
                     App Nu Herladen
                 </button>
             </div>

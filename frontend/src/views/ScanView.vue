@@ -15,6 +15,7 @@ const selectedLocationId = ref<number | null>(null)
 const allTags = ref<any[]>([])
 const selectedTagIds = ref<number[]>([])
 const mediaType = ref('CD')
+const artistInput = ref('')
 
 const mediaTypes = ref<string[]>([])
 
@@ -29,6 +30,16 @@ const selectedFile = ref<File | null>(null)
 const coverPreview = ref<string | null>(null)
 
 const allGenres = ref<any[]>([])
+
+// Bulk Import
+const showBulkModal = ref(false)
+const bulkText = ref('')
+const parsedPreview = ref<any[]>([])
+const isParsing = ref(false)
+
+// Debounce timer
+let duplicateCheckTimer: any = null
+let bulkParseTimer: any = null
 
 async function fetchMetadata() {
     try {
@@ -68,6 +79,7 @@ function manualAdd() {
     mediaType.value = 'CD'
     selectedFile.value = null
     coverPreview.value = null
+    artistInput.value = ''
 }
 
 function onCoverChange(e: any) {
@@ -187,6 +199,7 @@ async function fetchAlbumData(barcode: string) {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/lookup/${barcode}`)
         if (response.ok) {
             albumData.value = await response.json()
+            artistInput.value = albumData.value.artists.join(', ')
             checkDuplicates()
         } else {
             error.value = "Album niet gevonden in MusicBrainz."
@@ -196,6 +209,55 @@ async function fetchAlbumData(barcode: string) {
     } finally {
         loading.value = false
     }
+}
+
+async function handleBulkParse(e?: Event) {
+    if (bulkParseTimer) clearTimeout(bulkParseTimer)
+    
+    bulkParseTimer = setTimeout(async () => {
+        const file = e ? (e.target as HTMLInputElement).files?.[0] : null
+        isParsing.value = true
+        error.value = ""
+        
+        try {
+            let response
+            const formData = new FormData()
+            
+            if (file) {
+                formData.append('file', file)
+            } else {
+                formData.append('text', bulkText.value)
+            }
+
+            response = await fetch(`${import.meta.env.VITE_API_URL}/tracks/parse`, {
+                method: 'POST',
+                body: formData
+            })
+            
+            if (response.ok) {
+                parsedPreview.value = await response.json()
+            } else {
+                const detail = await response.json()
+                error.value = detail.detail || "Parsen mislukt"
+            }
+        } catch (e) {
+            error.value = "Fout bij verbinden met server"
+        } finally {
+            isParsing.value = false
+        }
+    }, e ? 0 : 500) // Immediate for file upload, debounced for text
+}
+
+function confirmBulkImport() {
+    if (!albumData.value) return
+    // Simple overwrite for now, or append? Let's overwrite as it's a "bulk import"
+    albumData.value.tracks = parsedPreview.value.map((t: any) => ({
+        ...t,
+        track_no: t.position // Map position back to track_no for frontend consistency
+    }))
+    showBulkModal.value = false
+    bulkText.value = ""
+    parsedPreview.value = []
 }
 
 async function saveAlbum() {
@@ -314,7 +376,10 @@ async function checkDuplicates() {
 
 // Watch for manual changes to title or artists
 watch([() => albumData.value?.title, () => albumData.value?.artists], () => {
-    checkDuplicates()
+    if (duplicateCheckTimer) clearTimeout(duplicateCheckTimer)
+    duplicateCheckTimer = setTimeout(() => {
+        checkDuplicates()
+    }, 500)
 }, { deep: true })
 
 onMounted(() => {
@@ -427,7 +492,7 @@ onUnmounted(() => {
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Artist(s) <span class="text-[10px] lowercase font-normal">(komma gescheiden)</span></label>
-                        <input :value="albumData.artists.join(', ')" @input="(e:any) => albumData.artists = e.target.value.split(',').map((s:string) => s.trim())" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-bold text-primary focus:ring-2 focus:ring-primary">
+                        <input v-model="artistInput" @input="albumData.artists = artistInput.split(',').map(s => s.trim())" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-bold text-primary focus:ring-2 focus:ring-primary">
                     </div>
 
                     <!-- Duplicate Warning -->
@@ -537,10 +602,16 @@ onUnmounted(() => {
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="block text-xs font-bold text-slate-500 uppercase">Tracklist</label>
-                            <button @click="addTrack" class="text-xs font-bold text-primary flex items-center gap-1">
-                                <span class="material-symbols-outlined text-sm">add_circle</span>
-                                Track toevoegen
-                            </button>
+                            <div class="flex gap-3">
+                                <button @click="showBulkModal = true" class="text-xs font-bold text-slate-500 flex items-center gap-1 hover:text-primary transition-colors">
+                                    <span class="material-symbols-outlined text-sm">format_list_bulleted_add</span>
+                                    Bulk Import
+                                </button>
+                                <button @click="addTrack" class="text-xs font-bold text-primary flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">add_circle</span>
+                                    Track toevoegen
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="space-y-4">
@@ -572,6 +643,92 @@ onUnmounted(() => {
                     <button @click="saveAlbum" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30">Opslaan</button>
                 </div>
             </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Bulk Import Modal -->
+  <div v-if="showBulkModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showBulkModal = false"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-surface-dark rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">format_list_bulleted_add</span>
+                Bulk Tracks Importeren
+            </h3>
+            <button @click="showBulkModal = false" class="size-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-slate-400">close</span>
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto space-y-6 flex-1">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">CSV Tekst Plakken</label>
+                    <div class="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-[10px] text-blue-700 dark:text-blue-300">
+                        Formaat: <code>tracknr, titel, tijdsduur</code> per regel
+                    </div>
+                    <textarea 
+                        v-model="bulkText" 
+                        @input="handleBulkParse()"
+                        rows="6" 
+                        class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none text-sm font-mono focus:ring-2 focus:ring-primary"
+                        placeholder="1, Bohemian Rhapsody, 05:55&#10;2, Another One Bites the Dust, 03:34"
+                    ></textarea>
+                </div>
+
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
+                    <div class="relative flex justify-center text-xs uppercase font-bold text-slate-400 bg-white dark:bg-surface-dark px-2">Of Bestand Uploaden</div>
+                </div>
+
+                <div>
+                    <input 
+                        type="file" 
+                        accept=".txt" 
+                        @change="handleBulkParse"
+                        class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    >
+                </div>
+            </div>
+
+            <!-- Preview Table -->
+            <div v-if="parsedPreview.length > 0" class="space-y-3">
+                <label class="block text-xs font-bold text-slate-500 uppercase">Voorbeeld Resultaat ({{ parsedPreview.length }} tracks)</label>
+                <div class="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-50 dark:bg-slate-800/50">
+                            <tr>
+                                <th class="p-2 font-bold text-slate-400 w-8">#</th>
+                                <th class="p-2 font-bold text-slate-400">Titel</th>
+                                <th class="p-2 font-bold text-slate-400 w-16">Duur</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tr v-for="t in parsedPreview" :key="t.position">
+                                <td class="p-2 font-mono text-slate-400">{{ t.position }}</td>
+                                <td class="p-2 font-medium text-slate-900 dark:text-white">{{ t.title }}</td>
+                                <td class="p-2 text-slate-500">{{ t.duration || '--:--' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div v-if="isParsing" class="flex items-center justify-center py-8">
+                <div class="animate-spin h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full"></div>
+            </div>
+        </div>
+
+        <div class="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-3">
+            <button @click="showBulkModal = false" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Annuleren</button>
+            <button 
+                @click="confirmBulkImport" 
+                :disabled="parsedPreview.length === 0"
+                class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 disabled:opacity-50 disabled:shadow-none"
+            >
+                Tracks Importeren
+            </button>
         </div>
     </div>
   </div>

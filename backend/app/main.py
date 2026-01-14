@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Query, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Query, BackgroundTasks, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -16,7 +16,8 @@ from fastapi.responses import FileResponse
 
 from .database import create_db_and_tables, get_session, engine
 from .models import Album, Artist, Tag, Location, AlbumRead, AlbumCreate, AlbumUpdate, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, Genre, GenreRead, TagRead
-from . import crud, services
+from . import crud, services, utils
+from pydantic import BaseModel
 
 def init_fts(session: Session):
     # Create FTS5 virtual table for albums if it doesn't exist
@@ -316,6 +317,31 @@ def link_artist_to_album(album_id: int, artist_id: int, role: str = "Main", sess
     # In a real app check for artist too and duplicates
     
     return crud.add_artist_to_album(session=session, album_id=album_id, artist_id=artist_id, role=role)
+
+# --- Bulk Track Parsing ---
+@app.post("/tracks/parse")
+async def parse_tracks(
+    text: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None)
+):
+    """
+    Parse a tracklist from pasted text or a TXT file via FormData.
+    """
+    text_content = ""
+    
+    if file:
+        content = await file.read()
+        text_content = content.decode('utf-8', errors='ignore')
+    elif text:
+        text_content = text
+    else:
+        raise HTTPException(status_code=400, detail="Geen tekst of bestand ontvangen.")
+        
+    if not text_content.strip():
+        raise HTTPException(status_code=400, detail="Inhoud is leeg.")
+        
+    parsed = utils.parse_tracklist_csv(text_content)
+    return parsed
 
 # --- Backup & Restore ---
 @app.get("/export")
