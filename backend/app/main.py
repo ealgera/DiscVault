@@ -94,7 +94,7 @@ def read_stats(session: Session = Depends(get_session)):
 @app.get("/constants")
 def read_constants():
     return {
-        "media_types": ['CD', 'CD-Single', 'SACD', 'Blu-ray Video', 'Blu-ray Audio', 'DVD Audio', 'Digital', 'Vinyl']
+        "media_types": ['CD', 'CD-R', 'CD-Single', 'SACD', 'Blu-ray Video', 'Blu-ray Audio', 'DVD Audio', 'Digital', 'Vinyl']
     }
 
 @app.get("/search", response_model=List[AlbumRead])

@@ -1,13 +1,15 @@
 # Logs
 *.log
 
-# Database
+# Database & User Data
+data/
 *.db
-
-# Pictures
-*.jpg
-*.png
 covers/
+
+# Environment
+.env
+.env.*
+!.env.example
 
 # Virtual Environment
 .venv/
@@ -22,7 +24,10 @@ node_modules/
 __pycache__
 
 # Build files
+dist/
+target/
 frontend/dist/
 
 #Overig
 *.old
+.agent/
