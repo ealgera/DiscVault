@@ -5,8 +5,11 @@ import { useRouter, useRoute } from 'vue-router'
 interface Album {
   id: number
   title: string
+  year?: number
   cover_url?: string
   artists: { name: string }[]
+  tags?: { id: number, name: string, color: string }[]
+  tracks?: { id: number, title: string, track_no: number, disc_no: number }[]
 }
 
 const router = useRouter()
@@ -60,6 +63,11 @@ function handleSearch() {
 }
 
 function setFilter(filter: string) {
+    if (filter === 'all') {
+        searchQuery.value = ''
+        sortBy.value = 'created_at'
+        sortOrder.value = 'desc'
+    }
     searchFilter.value = filter
     updateQuery()
     fetchAlbums(searchQuery.value)
@@ -175,13 +183,13 @@ onMounted(() => {
       <!-- Filters Row -->
       <div class="flex items-center gap-2 mt-3 px-4 overflow-x-auto no-scrollbar py-1">
         <button 
-            v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag']" 
+            v-for="f in ['all', 'title', 'artist', 'track', 'genre', 'tag', 'media_type']" 
             :key="f"
             @click="setFilter(f)"
             class="px-3 py-1.5 rounded-full text-xs font-bold border transition-colors whitespace-nowrap shadow-sm"
             :class="searchFilter === f ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-surface-dark text-slate-500 border-slate-200 dark:border-slate-700'"
         >
-            {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f.charAt(0).toUpperCase() + f.slice(1) }}
+            {{ f === 'all' ? 'Alles' : f === 'track' ? 'Track' : f === 'media_type' ? 'Media' : f.charAt(0).toUpperCase() + f.slice(1) }}
         </button>
       </div>
     </div>
@@ -218,10 +226,37 @@ onMounted(() => {
           </div>
           
           <div class="flex-1 min-w-0">
-            <h3 class="font-bold text-slate-900 dark:text-white truncate">{{ album.title }}</h3>
+            <h3 class="font-bold text-slate-900 dark:text-white truncate">
+                {{ album.title }} <span v-if="album.year" class="font-normal text-slate-400">({{ album.year }})</span>
+            </h3>
             <p class="text-sm text-slate-500 truncate">
                 {{ album.artists && album.artists.length ? album.artists.map(a => a.name).join(', ') : 'Onbekende artiest' }}
             </p> 
+            
+            <!-- Tags -->
+            <div v-if="album.tags && album.tags.length" class="flex flex-wrap gap-1 mt-1">
+                <span 
+                    v-for="tag in album.tags" :key="tag.id"
+                    class="px-1.5 py-0.5 rounded text-[9px] font-bold text-white uppercase tracking-tighter"
+                    :style="{ backgroundColor: tag.color }"
+                >
+                    {{ tag.name }}
+                </span>
+            </div>
+
+            <!-- Matching Tracks (only show if searching tracks or all and there's a hit) -->
+            <div v-if="searchQuery && (searchFilter === 'all' || searchFilter === 'track')" class="mt-2 space-y-1">
+                <div 
+                    v-for="track in album.tracks?.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))" 
+                    :key="track.id"
+                    class="text-[11px] text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10 flex items-center gap-1"
+                >
+                    <span class="material-symbols-outlined text-[12px]">audiotrack</span>
+                    <span class="font-bold text-slate-400 mr-1">{{ track.track_no }}.</span>
+                    <span class="font-bold truncate">{{ track.title }}</span>
+                    <span v-if="track.disc_no > 1" class="text-slate-400 ml-auto text-[9px] uppercase font-black tracking-tighter">CD {{ track.disc_no }}</span>
+                </div>
+            </div>
           </div>
           
           <span class="material-symbols-outlined text-slate-300">chevron_right</span>

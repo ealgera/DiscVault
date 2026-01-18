@@ -155,7 +155,13 @@ def delete_genre(session: Session, genre_id: int) -> bool:
     return True
 
 def get_albums(session: Session, offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", album_ids: Optional[List[int]] = None) -> List[Album]:
-    statement = select(Album).options(selectinload(Album.artists)).options(selectinload(Album.location))
+    statement = select(Album).options(
+        selectinload(Album.artists),
+        selectinload(Album.location),
+        selectinload(Album.tags),
+        selectinload(Album.genres),
+        selectinload(Album.tracks)
+    )
     
     if album_ids is not None:
         statement = statement.where(Album.id.in_(album_ids))

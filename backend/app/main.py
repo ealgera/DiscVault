@@ -99,16 +99,51 @@ def read_constants():
 
 @app.get("/search", response_model=List[AlbumRead])
 def search_albums(q: str, filter: str = "all", sort_by: str = "created_at", order: str = "desc", session: Session = Depends(get_session)):
-    q_lower = q.lower()
+    q_lower = q.lower().strip()
     
     results = []
     
+    # helper for AND logic on tags/genres
+    def search_with_logic(model, link_model, attr_name):
+        nonlocal results
+        # Check for AND/OR
+        if " and " in q_lower:
+            terms = [t.strip() for t in q_lower.split(" and ") if t.strip()]
+            if not terms: return
+            
+            # For AND, we need albums that have ALL terms. 
+            # We find IDs that match each term and then intersect.
+            id_sets = []
+            for term in terms:
+                stmt = select(Album.id).join(link_model).join(model).where(func.lower(getattr(model, attr_name)).contains(term))
+                id_sets.append(set(session.exec(stmt).all()))
+            
+            if not id_sets: return
+            matching_ids = set.intersection(*id_sets)
+            if matching_ids:
+                results += session.exec(select(Album).where(Album.id.in_(list(matching_ids)))).all()
+        
+        elif " or " in q_lower:
+            terms = [t.strip() for t in q_lower.split(" or ") if t.strip()]
+            if not terms: return
+            
+            # For OR, any term matches.
+            from sqlmodel import or_
+            stmt = select(Album).join(link_model).join(model).where(
+                or_(*[func.lower(getattr(model, attr_name)).contains(term) for term in terms])
+            )
+            results += session.exec(stmt).all()
+        else:
+            # Standard single term search
+            results += session.exec(select(Album).join(link_model).join(model).where(func.lower(getattr(model, attr_name)).contains(q_lower))).all()
+
     # 1. Search by Title
     if filter in ["all", "title"]:
         results += session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
     
     # 2. Search by Artist Name
     if filter in ["all", "artist"]:
+        # We can also support AND/OR for artists if we want, but requirements specifically mentioned genres/tags
         results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
     
     # 3. Search by Notes
@@ -117,17 +152,21 @@ def search_albums(q: str, filter: str = "all", sort_by: str = "created_at", orde
 
     # 4. Search by Genre
     if filter in ["all", "genre"]:
-        results += session.exec(select(Album).join(AlbumGenreLink).join(Genre).where(func.lower(Genre.name).contains(q_lower))).all()
+        search_with_logic(Genre, AlbumGenreLink, "name")
 
     # 5. Search by Tag
     if filter in ["all", "tag"]:
-        results += session.exec(select(Album).join(AlbumTagLink).join(Tag).where(func.lower(Tag.name).contains(q_lower))).all()
+        search_with_logic(Tag, AlbumTagLink, "name")
         
     # 6. Search by Track Title
     if filter in ["all", "track"]:
         # Join Tracks and filter by title
         from .models import Track
         results += session.exec(select(Album).join(Track).where(func.lower(Track.title).contains(q_lower))).all()
+
+    # 7. Search by Media Type
+    if filter in ["all", "media_type"]:
+        results += session.exec(select(Album).where(func.lower(Album.media_type).contains(q_lower))).all()
 
     # Combine and Deduplicate (by ID)
     seen_ids = set()
