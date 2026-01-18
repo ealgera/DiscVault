@@ -333,6 +333,20 @@ const editTracksByDisc = computed(() => {
     }, {})
 })
 
+const youtubeMusicUrl = computed(() => {
+  if (!album.value) return '#'
+  const artist = album.value.artists?.[0]?.name || ''
+  const query = `${artist} ${album.value.title}`.trim()
+  return `https://music.youtube.com/search?q=${encodeURIComponent(query)}`
+})
+
+function getLyricsUrl(trackTitle: string) {
+  if (!album.value) return '#'
+  const artist = album.value.artists?.[0]?.name || ''
+  const query = `${artist} ${trackTitle} lyrics`.trim()
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`
+}
+
 onMounted(() => {
     fetchAlbum()
 })
@@ -400,6 +414,16 @@ onMounted(() => {
                 >
                     <span class="material-symbols-outlined text-lg" :class="{ 'icon-filled': isFavorite }">favorite</span>
                 </button>
+                
+                <!-- YouTube Music Toggle -->
+                <a 
+                    :href="youtubeMusicUrl" 
+                    target="_blank"
+                    class="flex items-center gap-2 bg-[#FF0000] text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-red-500/30 hover:bg-red-700 transition active:scale-95"
+                >
+                    <span class="material-symbols-outlined text-lg">play_circle</span>
+                    YouTube Music
+                </a>
             </div>
 
             <!-- Tags -->
@@ -649,7 +673,17 @@ onMounted(() => {
                         <div v-for="track in tracks" :key="track.track_no" class="p-4 flex items-center gap-4 group">
                             <span class="text-xs font-bold text-slate-300 w-4">{{ track.track_no }}</span>
                             <span class="flex-1 font-medium text-slate-700 dark:text-slate-200 text-sm group-hover:text-primary transition-colors">{{ track.title }}</span>
-                            <span v-if="track.duration" class="text-[10px] font-mono text-slate-400">{{ track.duration }}</span>
+                            <div class="flex items-center gap-3">
+                                <a 
+                                    :href="getLyricsUrl(track.title)" 
+                                    target="_blank"
+                                    class="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-300 hover:text-primary transition-all opacity-0 group-hover:opacity-100"
+                                    title="Zoek lyrics"
+                                >
+                                    <span class="material-symbols-outlined text-base">description</span>
+                                </a>
+                                <span v-if="track.duration" class="text-[10px] font-mono text-slate-400">{{ track.duration }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
