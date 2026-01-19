@@ -96,12 +96,12 @@ onMounted(async () => {
           </div>
           <span class="text-base font-bold text-slate-900 dark:text-white">Bladeren</span>
         </router-link>
-        <button class="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+        <router-link to="/reports" class="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
           <div class="flex size-10 items-center justify-center rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
             <span class="material-symbols-outlined">analytics</span>
           </div>
           <span class="text-base font-bold text-slate-900 dark:text-white">Rapporten</span>
-        </button>
+        </router-link>
         <button class="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
           <div class="flex size-10 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-500">
             <span class="material-symbols-outlined icon-filled">favorite</span>

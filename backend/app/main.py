@@ -81,7 +81,7 @@ app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to DiscVault API", "version": "1.5.0"}
+    return {"message": "Welcome to DiscVault API", "version": "2.2.0"}
 
 @app.get("/health")
 def health_check():
@@ -90,6 +90,14 @@ def health_check():
 @app.get("/stats")
 def read_stats(session: Session = Depends(get_session)):
     return crud.get_stats(session)
+
+@app.get("/reports/stats")
+def read_report_stats(session: Session = Depends(get_session)):
+    return crud.get_report_stats(session)
+
+@app.get("/reports/details/{report_type}")
+def read_report_details(report_type: str, session: Session = Depends(get_session)):
+    return crud.get_report_details(session, report_type)
 
 @app.get("/constants")
 def read_constants():
@@ -223,6 +231,13 @@ def create_artist(artist: Artist, session: Session = Depends(get_session)):
 def read_artists(session: Session = Depends(get_session)):
     return crud.get_artists(session=session)
 
+@app.delete("/artists/{artist_id}")
+def delete_artist(artist_id: int, session: Session = Depends(get_session)):
+    success = crud.delete_artist(session=session, artist_id=artist_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Artist not found")
+    return {"ok": True}
+
 # --- Tag Endpoints ---
 @app.post("/tags/", response_model=Tag)
 def create_tag(tag: Tag, session: Session = Depends(get_session)):
@@ -238,6 +253,13 @@ def update_tag(tag_id: int, tag: Tag, session: Session = Depends(get_session)):
     if not updated_tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return updated_tag
+
+@app.delete("/tags/{tag_id}")
+def delete_tag(tag_id: int, session: Session = Depends(get_session)):
+    success = crud.delete_tag(session=session, tag_id=tag_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return {"ok": True}
 
 # --- Genre Endpoints ---
 @app.post("/genres/", response_model=Genre)

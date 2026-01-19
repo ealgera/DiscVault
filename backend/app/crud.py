@@ -3,7 +3,7 @@ from sqlalchemy.orm import selectinload
 from .models import Album, Artist, Tag, Location, Track, AlbumArtistLink, AlbumTagLink, AlbumGenreLink, AlbumCreate, AlbumUpdate, Genre
 from typing import List, Optional
 
-# --- Stats ---
+# --- Stats & Reports ---
 def get_stats(session: Session):
     album_count = session.exec(select(func.count(Album.id))).one()
     artist_count = session.exec(select(func.count(Artist.id))).one()
@@ -13,6 +13,99 @@ def get_stats(session: Session):
         "artists": artist_count,
         "genres": genre_count
     }
+
+def get_report_stats(session: Session):
+    # Metadata counts
+    unused_genres = session.exec(
+        select(func.count(Genre.id)).outerjoin(AlbumGenreLink).where(AlbumGenreLink.album_id == None)
+    ).one()
+    
+    unused_tags = session.exec(
+        select(func.count(Tag.id)).outerjoin(AlbumTagLink).where(AlbumTagLink.album_id == None)
+    ).one()
+    
+    unused_artists = session.exec(
+        select(func.count(Artist.id)).outerjoin(AlbumArtistLink).where(AlbumArtistLink.album_id == None)
+    ).one()
+
+    # Low usage counts (1-2 albums)
+    # This requires grouping and having
+    low_usage_genres = session.exec(
+        select(func.count(Genre.id)).where(Genre.id.in_(
+            select(Genre.id).join(AlbumGenreLink).group_by(Genre.id).having(func.count(AlbumGenreLink.album_id) <= 2)
+        ))
+    ).one()
+
+    low_usage_tags = session.exec(
+        select(func.count(Tag.id)).where(Tag.id.in_(
+            select(Tag.id).join(AlbumTagLink).group_by(Tag.id).having(func.count(AlbumTagLink.album_id) <= 2)
+        ))
+    ).one()
+
+    # Incomplete albums
+    missing_covers = session.exec(select(func.count(Album.id)).where(Album.cover_url == None)).one()
+    missing_tracks = session.exec(
+        select(func.count(Album.id)).where(Album.id.notin_(select(Track.album_id).group_by(Track.album_id)))
+    ).one()
+    missing_year = session.exec(select(func.count(Album.id)).where((Album.year == None) | (Album.year == 0))).one()
+    missing_location = session.exec(select(func.count(Album.id)).where(Album.location_id == None)).one()
+    missing_media = session.exec(select(func.count(Album.id)).where((Album.media_type == None) | (Album.media_type == ""))).one()
+    missing_catalog = session.exec(select(func.count(Album.id)).where((Album.catalog_no == None) | (Album.catalog_no == ""))).one()
+
+    return {
+        "unused_genres": unused_genres,
+        "unused_tags": unused_tags,
+        "unused_artists": unused_artists,
+        "low_usage_genres": low_usage_genres,
+        "low_usage_tags": low_usage_tags,
+        "missing_covers": missing_covers,
+        "missing_tracks": missing_tracks,
+        "missing_year": missing_year,
+        "missing_location": missing_location,
+        "missing_media": missing_media,
+        "missing_catalog": missing_catalog
+    }
+
+def get_report_details(session: Session, report_type: str):
+    if report_type == "unused_genres":
+        return session.exec(select(Genre).outerjoin(AlbumGenreLink).where(AlbumGenreLink.album_id == None)).all()
+    elif report_type == "unused_tags":
+        return session.exec(select(Tag).outerjoin(AlbumTagLink).where(AlbumTagLink.album_id == None)).all()
+    elif report_type == "unused_artists":
+        return session.exec(select(Artist).outerjoin(AlbumArtistLink).where(AlbumArtistLink.album_id == None)).all()
+    elif report_type == "low_usage_genres":
+        # We need the count returned as well
+        statement = select(Genre, func.count(AlbumGenreLink.album_id).label("count")).join(AlbumGenreLink).group_by(Genre.id).having(func.count(AlbumGenreLink.album_id) <= 2)
+        results = session.exec(statement).all()
+        # results will be a list of tuples (Genre, count)
+        items = []
+        for g, count in results:
+            g_dict = g.model_dump()
+            g_dict["count"] = count
+            items.append(g_dict)
+        return items
+    elif report_type == "low_usage_tags":
+        statement = select(Tag, func.count(AlbumTagLink.album_id).label("count")).join(AlbumTagLink).group_by(Tag.id).having(func.count(AlbumTagLink.album_id) <= 2)
+        results = session.exec(statement).all()
+        items = []
+        for t, count in results:
+            t_dict = t.model_dump()
+            t_dict["count"] = count
+            items.append(t_dict)
+        return items
+    elif report_type == "missing_covers":
+        return session.exec(select(Album).where(Album.cover_url == None).options(selectinload(Album.artists))).all()
+    elif report_type == "missing_tracks":
+        return session.exec(select(Album).where(Album.id.notin_(select(Track.album_id).group_by(Track.album_id))).options(selectinload(Album.artists))).all()
+    elif report_type == "missing_year":
+        return session.exec(select(Album).where((Album.year == None) | (Album.year == 0)).options(selectinload(Album.artists))).all()
+    elif report_type == "missing_location":
+        return session.exec(select(Album).where(Album.location_id == None).options(selectinload(Album.artists))).all()
+    elif report_type == "missing_media":
+        return session.exec(select(Album).where((Album.media_type == None) | (Album.media_type == "")).options(selectinload(Album.artists))).all()
+    elif report_type == "missing_catalog":
+        return session.exec(select(Album).where((Album.catalog_no == None) | (Album.catalog_no == "")).options(selectinload(Album.artists))).all()
+    return []
 
 # --- Albums ---
 def create_album(session: Session, album_create: AlbumCreate) -> Album:
@@ -211,6 +304,30 @@ def create_tag(session: Session, tag: Tag) -> Tag:
     session.commit()
     session.refresh(tag)
     return tag
+
+def delete_genre(session: Session, genre_id: int) -> bool:
+    genre = session.get(Genre, genre_id)
+    if not genre:
+        return False
+    session.delete(genre)
+    session.commit()
+    return True
+
+def delete_tag(session: Session, tag_id: int) -> bool:
+    tag = session.get(Tag, tag_id)
+    if not tag:
+        return False
+    session.delete(tag)
+    session.commit()
+    return True
+
+def delete_artist(session: Session, artist_id: int) -> bool:
+    artist = session.get(Artist, artist_id)
+    if not artist:
+        return False
+    session.delete(artist)
+    session.commit()
+    return True
 
 def get_tags(session: Session):
     # Return list of dicts with count

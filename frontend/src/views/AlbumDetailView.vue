@@ -580,7 +580,7 @@ onMounted(() => {
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Locatie</label>
                 <select v-model="editForm.location_id" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
                     <option :value="null">Geen</option>
-                    <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
+                    <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.storage_type }})</option>
                 </select>
             </div>
 
@@ -670,7 +670,7 @@ onMounted(() => {
                         <span v-if="tracks[0].disc_name" class="text-[10px] font-bold uppercase text-primary">{{ tracks[0].disc_name }}</span>
                     </div>
                     <div class="divide-y divide-slate-100 dark:divide-slate-800">
-                        <div v-for="track in tracks" :key="track.track_no" class="p-4 flex items-center gap-4 group">
+                        <div v-for="track in tracks" :key="track.track_no" class="py-0.5 px-4 flex items-center gap-3 group">
                             <span class="text-xs font-bold text-slate-300 w-4">{{ track.track_no }}</span>
                             <span class="flex-1 font-medium text-slate-700 dark:text-slate-200 text-sm group-hover:text-primary transition-colors">{{ track.title }}</span>
                             <div class="flex items-center gap-3">

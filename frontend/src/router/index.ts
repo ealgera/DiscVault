@@ -50,6 +50,16 @@ const router = createRouter({
       name: 'management',
       component: () => import('../views/ManagementView.vue'),
     },
+    {
+      path: '/reports',
+      name: 'reports',
+      component: () => import('../views/ReportsView.vue'),
+    },
+    {
+      path: '/reports/:type',
+      name: 'report-detail',
+      component: () => import('../views/ReportDetailView.vue'),
+    },
   ],
 })
 
