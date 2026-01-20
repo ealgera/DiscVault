@@ -15,12 +15,13 @@ interface Album {
   location?: { id: number, name: string, storage_type: string, shelf?: string }
   tags?: { id: number, name: string, color: string }[]
   genres?: { id: number, name: string }[]
-  catalog_no?: string
+  catalog_no: string | null
   upc_ean?: string
   notes?: string
   media_type: string
   spars_code?: string
   created_at: string
+  status: string
   tracks?: { track_no: number, title: string, duration: string, disc_no: number, disc_name?: string }[]
 }
 
@@ -61,7 +62,7 @@ async function fetchAlbum() {
                 title: data.title,
                 year: data.year,
                 catalog_no: data.catalog_no,
-                upc_ean: data.upc_ean,
+                upc_ean: data.upc_ean || '',
                 location_id: data.location?.id || null,
                 tag_ids: data.tags ? data.tags.map((t:any) => t.id) : [],
                 genre_ids: data.genres ? data.genres.map((g:any) => g.id) : [],
@@ -70,7 +71,8 @@ async function fetchAlbum() {
                 media_type: data.media_type || 'CD',
                 spars_code: data.spars_code || '',
                 cover_url: data.cover_url,
-                tracks: data.tracks || []
+                status: data.status || 'collection',
+                tracks: data.tracks ? JSON.parse(JSON.stringify(data.tracks)) : []
             }
             artistInput.value = editForm.value.artist_names.join(', ')
         }
@@ -196,6 +198,25 @@ async function toggleFavorite() {
         }
     } catch (e) {
         console.error(e)
+    }
+}
+
+async function moveToCollection() {
+    if (!album.value) return
+    try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/albums/${albumId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'collection' })
+        })
+        if (response.ok) {
+            await fetchAlbum()
+        } else {
+            alert('Verplaatsen naar collectie mislukt')
+        }
+    } catch (e) {
+        console.error(e)
+        alert('Fout bij verplaatsen naar collectie')
     }
 }
 
@@ -398,6 +419,23 @@ onMounted(() => {
                 {{ album.artists.map((a:any) => a.name).join(', ') }}
             </p>
 
+            <!-- Badges -->
+            <div class="flex flex-wrap justify-center gap-2 mb-4">
+                <!-- Status Badge -->
+                <div v-if="album.status === 'wishlist'" class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-500/20">
+                    <span class="material-symbols-outlined text-sm">auto_awesome</span>
+                    Wishlist
+                </div>
+                <div v-else class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest border border-primary/20">
+                    <span class="material-symbols-outlined text-sm">album</span>
+                    In Collectie
+                </div>
+                
+                <div v-for="genre in album.genres" :key="genre.id" class="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                    {{ genre.name }}
+                </div>
+            </div>
+
             <!-- Action Bar (View Mode) -->
             <div v-if="!isEditing" class="flex gap-3 mb-4">
                 <button @click="startEdit" class="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-blue-700 transition active:scale-95">
@@ -424,6 +462,16 @@ onMounted(() => {
                     <span class="material-symbols-outlined text-lg">play_circle</span>
                     YouTube Music
                 </a>
+
+                <!-- Move to Collection Button -->
+                <button 
+                    v-if="album.status === 'wishlist'" 
+                    @click="moveToCollection"
+                    class="flex items-center gap-2 bg-emerald-500 text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-emerald-500/30 hover:bg-emerald-700 transition active:scale-95"
+                >
+                    <span class="material-symbols-outlined text-lg">library_add</span>
+                    Naar Collectie
+                </button>
             </div>
 
             <!-- Tags -->
@@ -519,7 +567,7 @@ onMounted(() => {
                             {{ album.location.shelf }}
                         </p>
                     </div>
-                    <span v-if="!album.location" class="text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded">Missend</span>
+                    <span v-if="!album.location && album.status === 'collection'" class="text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded">Missend</span>
                 </div>
             </div>
 
@@ -576,12 +624,21 @@ onMounted(() => {
                 </div>
             </div>
             
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Locatie</label>
-                <select v-model="editForm.location_id" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
-                    <option :value="null">Geen</option>
-                    <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.storage_type }})</option>
-                </select>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Status</label>
+                    <select v-model="editForm.status" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary">
+                        <option value="collection">In Collectie</option>
+                        <option value="wishlist">Wishlist</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Locatie</label>
+                    <select v-model="editForm.location_id" :disabled="editForm.status === 'wishlist'" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 font-medium text-slate-900 dark:text-white focus:ring-primary disabled:opacity-50">
+                        <option :value="null">Geen</option>
+                        <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.storage_type }})</option>
+                    </select>
+                </div>
             </div>
 
             <div>

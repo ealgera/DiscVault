@@ -63,6 +63,29 @@ const albumReports = [
         </div>
 
         <template v-else>
+            <!-- Stats Insight Section -->
+            <section class="space-y-4">
+                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 px-1">Inzichten & Statistieken</h3>
+                <button 
+                    @click="router.push('/statistics')"
+                    class="w-full flex items-center justify-between bg-white dark:bg-surface-dark p-6 rounded-3xl border border-slate-100 dark:border-slate-800 hover:shadow-lg transition-all group active:scale-[0.98] overflow-hidden relative"
+                >
+                    <div class="absolute top-0 right-0 p-2 opacity-5">
+                        <span class="material-symbols-outlined text-[120px] -rotate-12">bar_chart</span>
+                    </div>
+                    <div class="flex items-center gap-4 relative z-10">
+                        <div class="size-12 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <span class="material-symbols-outlined">analytics</span>
+                        </div>
+                        <div class="text-left">
+                            <h4 class="font-black text-slate-900 dark:text-white uppercase tracking-tight">Bekijk Statistieken</h4>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Genre & Tag distributie</p>
+                        </div>
+                    </div>
+                    <span class="material-symbols-outlined text-primary group-hover:translate-x-1 transition-transform relative z-10">chevron_right</span>
+                </button>
+            </section>
+
             <!-- Metadata Section -->
             <section class="space-y-4">
                 <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 px-1">Metadata Opschonen</h3>

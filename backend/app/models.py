@@ -105,6 +105,7 @@ class AlbumBase(SQLModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     archived_at: Optional[datetime] = None
     location_id: Optional[int] = Field(default=None, foreign_key="locations.id")
+    status: str = Field(default="collection", index=True) # "collection" or "wishlist"
 
 class Album(AlbumBase, table=True):
     __tablename__ = "albums"

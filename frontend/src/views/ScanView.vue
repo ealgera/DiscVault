@@ -15,6 +15,7 @@ const selectedLocationId = ref<number | null>(null)
 const allTags = ref<any[]>([])
 const selectedTagIds = ref<number[]>([])
 const mediaType = ref('CD')
+const albumStatus = ref('collection')
 const artistInput = ref('')
 
 const mediaTypes = ref<string[]>([])
@@ -77,6 +78,7 @@ function manualAdd() {
     selectedTagIds.value = []
     selectedLocationId.value = null
     mediaType.value = 'CD'
+    albumStatus.value = 'collection'
     selectedFile.value = null
     coverPreview.value = null
     artistInput.value = ''
@@ -118,6 +120,7 @@ async function startCamera() {
     selectedTagIds.value = []
     selectedLocationId.value = null
     mediaType.value = 'CD'
+    albumStatus.value = 'collection'
     
     if (mediaTypes.value.length === 0) await fetchMetadata()
     if (cameras.value.length === 0) await getCameras()
@@ -280,6 +283,7 @@ async function saveAlbum() {
                 artist_names: albumData.value.artists,
                 genre_names: albumData.value.genres,
                 media_type: mediaType.value,
+                status: albumStatus.value,
                 notes: albumData.value.notes,
                 spars_code: albumData.value.spars_code,
                 tracks: albumData.value.tracks
@@ -297,6 +301,10 @@ async function saveAlbum() {
                     method: 'POST',
                     body: formData
                 })
+            }
+
+            if (hasWishlistMatch.value && albumStatus.value === 'collection') {
+                alert('Album stond op je Wishlist en is nu verplaatst naar je Collectie!')
             }
 
             router.push(`/albums/${newAlbum.id}`)
@@ -373,6 +381,10 @@ async function checkDuplicates() {
         console.error("Duplicate check failed", e)
     }
 }
+
+const hasWishlistMatch = computed(() => {
+    return potentialDuplicates.value.some(d => d.status === 'wishlist')
+})
 
 // Watch for manual changes to title or artists
 watch([() => albumData.value?.title, () => albumData.value?.artists], () => {
@@ -497,6 +509,17 @@ onUnmounted(() => {
 
                     <!-- Duplicate Warning -->
                     <div v-if="potentialDuplicates.length > 0" class="animate-in fade-in zoom-in duration-300">
+                        <!-- Wishlist Match Special Notice -->
+                        <div v-if="hasWishlistMatch" class="mb-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-900/30 rounded-xl p-3 flex items-center gap-3">
+                            <div class="size-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
+                                <span class="material-symbols-outlined text-sm">auto_awesome</span>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-200 tracking-tight">Staat op Wishlist</p>
+                                <p class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">Bij opslaan in collectie wordt de wishlist entry automatisch opgeschoond.</p>
+                            </div>
+                        </div>
+
                         <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 shadow-sm">
                             <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-2">
                                 <span class="material-symbols-outlined text-[20px]">warning</span>
@@ -526,9 +549,18 @@ onUnmounted(() => {
                             <input v-model="albumData.catalog_no" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-medium text-slate-600 focus:ring-2 focus:ring-primary">
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Barcode</label>
-                        <input v-model="scannedCode" class="w-full p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border-none font-mono text-sm text-slate-500 focus:ring-2 focus:ring-primary">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Status</label>
+                            <select v-model="albumStatus" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary shadow-sm">
+                                <option value="collection">Mijn Collectie</option>
+                                <option value="wishlist">Wishlist</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Barcode</label>
+                            <input v-model="scannedCode" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-mono text-sm text-slate-500 focus:ring-2 focus:ring-primary shadow-sm">
+                        </div>
                     </div>
                 </div>
 
@@ -548,7 +580,7 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Location -->
-                    <div>
+                    <div v-if="albumStatus === 'collection'">
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Locatie (Optioneel)</label>
                         <select v-model="selectedLocationId" class="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-primary">
                             <option :value="null">Kies locatie...</option>

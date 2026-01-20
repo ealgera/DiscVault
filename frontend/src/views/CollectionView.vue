@@ -17,6 +17,7 @@ const route = useRoute()
 
 const searchQuery = ref(route.query.q?.toString() || '')
 const searchFilter = ref(route.query.filter?.toString() || 'all')
+const currentStatus = ref(route.query.status?.toString() || 'collection')
 const sortBy = ref(route.query.sort?.toString() || 'created_at')
 const sortOrder = ref(route.query.order?.toString() || 'desc')
 const albums = ref<Album[]>([])
@@ -27,10 +28,10 @@ let searchTimeout: number
 async function fetchAlbums(query: string = '') {
     loading.value = true
     try {
-        let url = `${import.meta.env.VITE_API_URL}/albums/?limit=1000&sort_by=${sortBy.value}&order=${sortOrder.value}`
+        let url = `${import.meta.env.VITE_API_URL}/albums/?limit=1000&sort_by=${sortBy.value}&order=${sortOrder.value}&status=${currentStatus.value}`
         // Use current searchFilter if query exists, otherwise just list
         if (query) {
-            url = `${import.meta.env.VITE_API_URL}/search?q=${encodeURIComponent(query)}&filter=${searchFilter.value}&sort_by=${sortBy.value}&order=${sortOrder.value}`
+            url = `${import.meta.env.VITE_API_URL}/search?q=${encodeURIComponent(query)}&filter=${searchFilter.value}&sort_by=${sortBy.value}&order=${sortOrder.value}&status=${currentStatus.value}`
         }
         const response = await fetch(url)
         if (response.ok) {
@@ -48,6 +49,7 @@ function updateQuery() {
         query: { 
             q: searchQuery.value || undefined, 
             filter: searchFilter.value !== 'all' ? searchFilter.value : undefined,
+            status: currentStatus.value !== 'collection' ? currentStatus.value : undefined,
             sort: sortBy.value !== 'created_at' ? sortBy.value : undefined,
             order: sortOrder.value !== 'desc' ? sortOrder.value : undefined
         } 
@@ -122,7 +124,29 @@ onMounted(() => {
   <div class="min-h-screen bg-gray-50 dark:bg-background-dark pb-24">
     
     <!-- HEADER -->
-    <div class="sticky top-0 z-30 bg-gray-50/90 dark:bg-background-dark/90 backdrop-blur-md py-4">
+    <div class="sticky top-0 z-30 bg-gray-50/90 dark:bg-background-dark/90 backdrop-blur-md pt-4 pb-2">
+      <!-- Status Tabs -->
+      <div class="flex px-4 mb-4">
+        <div class="flex p-1 bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 w-full">
+            <button 
+                @click="currentStatus = 'collection'; updateQuery(); fetchAlbums(searchQuery)"
+                class="flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                :class="currentStatus === 'collection' ? 'bg-primary text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'"
+            >
+                <span class="material-symbols-outlined text-sm">album</span>
+                Collectie
+            </button>
+            <button 
+                @click="currentStatus = 'wishlist'; updateQuery(); fetchAlbums(searchQuery)"
+                class="flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                :class="currentStatus === 'wishlist' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'"
+            >
+                <span class="material-symbols-outlined text-sm">auto_awesome</span>
+                Wishlist
+            </button>
+        </div>
+      </div>
+
       <div class="relative px-4">
         <span class="absolute inset-y-0 left-4 flex items-center pl-3">
           <span class="material-symbols-outlined text-slate-400">search</span>
@@ -139,7 +163,7 @@ onMounted(() => {
       <!-- Top Bar: Results Count & Sorting -->
       <div class="flex items-center justify-between px-4 mt-4">
         <div class="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-            {{ loading ? 'Zoeken...' : `${albums.length} Albums` }}
+            {{ loading ? 'Zoeken...' : `${albums.length} ${currentStatus === 'wishlist' ? 'Items' : 'Albums'}` }}
         </div>
         
         <!-- Sorting Toggle -->

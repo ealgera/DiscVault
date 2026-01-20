@@ -247,7 +247,7 @@ def delete_genre(session: Session, genre_id: int) -> bool:
     session.commit()
     return True
 
-def get_albums(session: Session, offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", album_ids: Optional[List[int]] = None) -> List[Album]:
+def get_albums(session: Session, offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", album_ids: Optional[List[int]] = None, status: Optional[str] = None) -> List[Album]:
     statement = select(Album).options(
         selectinload(Album.artists),
         selectinload(Album.location),
@@ -258,6 +258,9 @@ def get_albums(session: Session, offset: int = 0, limit: int = 100, sort_by: str
     
     if album_ids is not None:
         statement = statement.where(Album.id.in_(album_ids))
+
+    if status is not None:
+        statement = statement.where(Album.status == status)
 
     # Sort Logic
     sort_attr = None
@@ -413,3 +416,30 @@ def check_duplicate_album(session: Session, title: str, artist_names: List[str],
                     results.append(album)
                     
     return results
+
+# --- Statistics ---
+def get_genre_distribution(session: Session):
+    # Only for albums in collection
+    statement = select(Genre.name, func.count(Album.id).label("count"))\
+        .select_from(Genre)\
+        .join(AlbumGenreLink)\
+        .join(Album)\
+        .where(Album.status == "collection")\
+        .group_by(Genre.name)\
+        .order_by(desc("count"))\
+        .limit(10)
+    results = session.exec(statement).all()
+    return [{"name": name, "count": count} for name, count in results]
+
+def get_tag_distribution(session: Session):
+    # Only for albums in collection
+    statement = select(Tag.name, func.count(Album.id).label("count"))\
+        .select_from(Tag)\
+        .join(AlbumTagLink)\
+        .join(Album)\
+        .where(Album.status == "collection")\
+        .group_by(Tag.name)\
+        .order_by(desc("count"))\
+        .limit(10)
+    results = session.exec(statement).all()
+    return [{"name": name, "count": count} for name, count in results]

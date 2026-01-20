@@ -99,6 +99,14 @@ def read_report_stats(session: Session = Depends(get_session)):
 def read_report_details(report_type: str, session: Session = Depends(get_session)):
     return crud.get_report_details(session, report_type)
 
+@app.get("/reports/distribution/{dist_type}")
+def read_distribution(dist_type: str, session: Session = Depends(get_session)):
+    if dist_type == "genres":
+        return crud.get_genre_distribution(session)
+    elif dist_type == "tags":
+        return crud.get_tag_distribution(session)
+    return []
+
 @app.get("/constants")
 def read_constants():
     return {
@@ -106,7 +114,14 @@ def read_constants():
     }
 
 @app.get("/search", response_model=List[AlbumRead])
-def search_albums(q: str, filter: str = "all", sort_by: str = "created_at", order: str = "desc", session: Session = Depends(get_session)):
+def search_albums(
+    q: str, 
+    filter: str = "all", 
+    sort_by: str = "created_at", 
+    order: str = "desc", 
+    status: Optional[str] = None,
+    session: Session = Depends(get_session)
+):
     q_lower = q.lower().strip()
     
     results = []
@@ -188,7 +203,8 @@ def search_albums(q: str, filter: str = "all", sort_by: str = "created_at", orde
         return []
 
     # Final query to get full objects with relations and APPLY SORTING
-    return crud.get_albums(session, offset=0, limit=1000, sort_by=sort_by, order=order, album_ids=deduped_ids)
+    # Also filter by status here if provided
+    return crud.get_albums(session, offset=0, limit=1000, sort_by=sort_by, order=order, album_ids=deduped_ids, status=status)
 
 # --- Album Endpoints ---
 @app.post("/albums/", response_model=Album)
@@ -205,8 +221,15 @@ def check_duplicate(
     return crud.check_duplicate_album(session, title=title, artist_names=artist_names, upc_ean=upc_ean)
 
 @app.get("/albums/", response_model=List[AlbumRead])
-def read_albums(offset: int = 0, limit: int = 100, sort_by: str = "created_at", order: str = "desc", session: Session = Depends(get_session)):
-    return crud.get_albums(session=session, offset=offset, limit=limit, sort_by=sort_by, order=order)
+def read_albums(
+    status: Optional[str] = None,
+    offset: int = 0, 
+    limit: int = 100, 
+    sort_by: str = "created_at", 
+    order: str = "desc",
+    session: Session = Depends(get_session)
+):
+    return crud.get_albums(session, offset=offset, limit=limit, sort_by=sort_by, order=order, status=status)
 
 @app.get("/albums/{album_id}", response_model=AlbumRead)
 def read_album(album_id: int, session: Session = Depends(get_session)):

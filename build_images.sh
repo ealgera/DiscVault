@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Configuratie
+VERSION="2.2.0"
 APP_NAME="discvault"
 REGISTRY="ealgera"
 
