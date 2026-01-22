@@ -66,6 +66,27 @@ async def lifespan(app: FastAPI):
         seed_data(session)
     yield
 
+async def pull_external_cover(album_id: int, url: str):
+    """
+    Background task to download an external cover and update the album record.
+    """
+    if not url or not url.startswith("http"):
+        return
+        
+    # Determine extension from URL or default to .jpg
+    ext = os.path.splitext(url.split("?")[0])[1] or ".jpg"
+    if ext.lower() not in [".jpg", ".jpeg", ".png", ".webp"]:
+        ext = ".jpg" # Default fallback
+        
+    dest_path = COVERS_DIR / f"album_{album_id}{ext}"
+    
+    filename = await utils.download_image(url, dest_path)
+    if filename:
+        local_url = f"/covers/{filename}"
+        with Session(engine) as session:
+            # We use crud.update_album to ensure any logic there (like FTS triggers) is respected
+            crud.update_album(session, album_id, AlbumUpdate(cover_url=local_url))
+
 app = FastAPI(title="DiscVault API", lifespan=lifespan)
 
 # Enable CORS
@@ -97,7 +118,9 @@ def read_report_stats(session: Session = Depends(get_session)):
 
 @app.get("/reports/details/{report_type}")
 def read_report_details(report_type: str, session: Session = Depends(get_session)):
-    return crud.get_report_details(session, report_type)
+    items = crud.get_report_details(session, report_type)
+    # Ensure Albums are validated against AlbumRead to include loaded relationships (artists)
+    return [AlbumRead.model_validate(i) if isinstance(i, Album) else i for i in items]
 
 @app.get("/reports/distribution/{dist_type}")
 def read_distribution(dist_type: str, session: Session = Depends(get_session)):
@@ -208,8 +231,11 @@ def search_albums(
 
 # --- Album Endpoints ---
 @app.post("/albums/", response_model=Album)
-def create_album(album: AlbumCreate, session: Session = Depends(get_session)):
-    return crud.create_album(session=session, album_create=album)
+def create_album(album: AlbumCreate, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    db_album = crud.create_album(session=session, album_create=album)
+    if db_album.cover_url and db_album.cover_url.startswith("http"):
+        background_tasks.add_task(pull_external_cover, db_album.id, db_album.cover_url)
+    return db_album
 
 @app.get("/albums/check-duplicate", response_model=List[AlbumRead])
 def check_duplicate(
@@ -239,10 +265,14 @@ def read_album(album_id: int, session: Session = Depends(get_session)):
     return album
 
 @app.put("/albums/{album_id}", response_model=AlbumRead)
-def update_album(album_id: int, album_update: AlbumUpdate, session: Session = Depends(get_session)):
+def update_album(album_id: int, album_update: AlbumUpdate, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     updated_album = crud.update_album(session=session, album_id=album_id, album_update=album_update)
     if not updated_album:
         raise HTTPException(status_code=404, detail="Album not found")
+    
+    if updated_album.cover_url and updated_album.cover_url.startswith("http"):
+        background_tasks.add_task(pull_external_cover, updated_album.id, updated_album.cover_url)
+        
     return updated_album
 
 # --- Artist Endpoints ---
@@ -354,7 +384,7 @@ async def upload_album_cover(album_id: int, file: UploadFile = File(...), sessio
     return {"cover_url": cover_url}
 
 @app.post("/albums/{album_id}/sync", response_model=AlbumRead)
-async def sync_album_with_musicbrainz(album_id: int, session: Session = Depends(get_session)):
+async def sync_album_with_musicbrainz(album_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     db_album = crud.get_album(session, album_id)
     if not db_album:
         raise HTTPException(status_code=404, detail="Album not found")
@@ -389,6 +419,8 @@ async def sync_album_with_musicbrainz(album_id: int, session: Session = Depends(
     album_update = AlbumUpdate(**{k: v for k, v in update_params.items() if v is not None})
     
     updated_album = crud.update_album(session, album_id, album_update)
+    if updated_album and updated_album.cover_url and updated_album.cover_url.startswith("http"):
+        background_tasks.add_task(pull_external_cover, updated_album.id, updated_album.cover_url)
     return updated_album
 
 # --- Relationships ---
@@ -426,6 +458,20 @@ async def parse_tracks(
         
     parsed = utils.parse_tracklist_csv(text_content)
     return parsed
+
+# --- Maintenance ---
+@app.post("/maintenance/pull-covers")
+async def maintenance_pull_covers(background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    """
+    Scan all albums and pull external covers to local storage.
+    """
+    # Find all albums where cover_url starts with http
+    albums = session.exec(select(Album).where(Album.cover_url.like("http%"))).all()
+    
+    for album in albums:
+        background_tasks.add_task(pull_external_cover, album.id, album.cover_url)
+        
+    return {"message": f"Queued {len(albums)} covers for background download."}
 
 # --- Backup & Restore ---
 @app.get("/export")

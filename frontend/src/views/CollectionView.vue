@@ -41,6 +41,7 @@ async function fetchAlbums(query: string = '') {
         console.error(e)
     } finally {
         loading.value = false
+        window.scrollTo(0, 0)
     }
 }
 
@@ -103,7 +104,10 @@ function resolveCoverURL(url: string | undefined) {
     if (url.startsWith('http')) return url
     const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '')
     const path = url.startsWith('/') ? url : `/${url}`
-    return `${baseUrl}${path}`
+    // Using a fixed timestamp for collection view is usually enough to flush 
+    // old caches from previous versions, or we could use Date.now() here too
+    // but that might be expensive on scroll.
+    return `${baseUrl}${path}?t=${Date.now()}`
 }
 
 function goToDetail(id: number) {

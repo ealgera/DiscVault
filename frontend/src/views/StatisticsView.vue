@@ -23,10 +23,14 @@ async function fetchStatistics() {
         error.value = 'Fout bij ophalen statistieken'
     } finally {
         loading.value = false
+        window.scrollTo(0, 0)
     }
 }
 
-onMounted(fetchStatistics)
+onMounted(() => {
+    fetchStatistics()
+    window.scrollTo(0, 0)
+})
 
 function getPercentage(count: number, total: number) {
     if (total === 0) return 0

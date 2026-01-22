@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any
 from sqlmodel import Field, SQLModel, Relationship
+from pydantic import field_validator
 
 # Link tables
 class AlbumTagLink(SQLModel, table=True):
@@ -81,6 +82,10 @@ class TrackBase(SQLModel):
     duration: Optional[str] = None
     disc_no: int = 1
     disc_name: Optional[str] = None
+    
+    # Allow extra fields so internal frontend fields like _originalIndex 
+    # or read-only fields like id don't cause 422 errors during PUT
+    model_config = {"extra": "allow"}
 
 class Track(TrackBase, table=True):
     __tablename__ = "tracks"
@@ -124,6 +129,15 @@ class AlbumCreate(AlbumBase):
     genre_names: List[str] = []
     tracks: List[TrackBase] = []
 
+    model_config = {"extra": "allow"}
+
+    @field_validator("year", "location_id", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, v: Any) -> Any:
+        if v == "":
+            return None
+        return v
+
 class AlbumUpdate(SQLModel):
     title: Optional[str] = None
     year: Optional[int] = None
@@ -137,7 +151,17 @@ class AlbumUpdate(SQLModel):
     genre_ids: Optional[List[int]] = None
     artist_names: Optional[List[str]] = None
     cover_url: Optional[str] = None
+    status: Optional[str] = None
     tracks: Optional[List[TrackBase]] = None
+
+    model_config = {"extra": "allow"}
+
+    @field_validator("year", "location_id", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, v: Any) -> Any:
+        if v == "":
+            return None
+        return v
 
 # --- Read Models (DTOs) ---
 class AlbumRead(AlbumBase):

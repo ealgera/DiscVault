@@ -1,6 +1,38 @@
 import csv
 import io
-from typing import List, Dict
+import httpx
+import os
+from pathlib import Path
+from typing import List, Dict, Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+async def download_image(url: str, dest_path: Path) -> Optional[str]:
+    """
+    Downloads an image from a URL and saves it to dest_path.
+    Returns the filename if successful, None otherwise.
+    """
+    if not url or not url.startswith("http"):
+        return None
+        
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            if response.status_code == 200:
+                # Ensure directory exists
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                with dest_path.open("wb") as f:
+                    f.write(response.content)
+                logger.info(f"Successfully downloaded {url} to {dest_path}")
+                return dest_path.name
+            else:
+                logger.error(f"Failed to download image from {url}: Status {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error downloading image from {url}: {str(e)}")
+        
+    return None
 
 def parse_tracklist_csv(text: str) -> List[Dict]:
     """

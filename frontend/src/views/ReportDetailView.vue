@@ -44,6 +44,7 @@ async function fetchDetails() {
         error.value = 'Fout bij verbinden met server'
     } finally {
         loading.value = false
+        window.scrollTo(0, 0)
     }
 }
 
@@ -147,9 +148,11 @@ onMounted(fetchDetails)
                             <span class="material-symbols-outlined text-slate-300">album</span>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="font-bold text-slate-800 dark:text-white truncate">{{ album.title }}</p>
-                            <p class="text-xs text-slate-500 truncate" v-if="album.artists">
-                                {{ album.artists.map((a:any) => a.name).join(', ') }}
+                            <p class="font-bold text-slate-800 dark:text-white truncate">
+                                {{ album.title }}
+                            </p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate" v-if="album.artists && album.artists.length">
+                                ({{ album.artists.map((a:any) => a.name).join(', ') }})
                             </p>
                         </div>
                         <span class="material-symbols-outlined text-slate-300">chevron_right</span>

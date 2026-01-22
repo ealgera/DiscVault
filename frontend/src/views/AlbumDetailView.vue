@@ -38,6 +38,7 @@ const editForm = ref<any>({})
 const artistInput = ref('')
 const selectedFile = ref<File | null>(null)
 const coverPreview = ref<string | null>(null)
+const refreshTimestamp = ref(Date.now())
 
 const mediaTypes = ref<string[]>([])
 
@@ -75,8 +76,7 @@ async function fetchAlbum() {
                 tracks: data.tracks ? JSON.parse(JSON.stringify(data.tracks)) : []
             }
             artistInput.value = editForm.value.artist_names.join(', ')
-        }
- else {
+        } else {
             error.value = 'Album niet gevonden'
         }
     } catch (e) {
@@ -84,6 +84,7 @@ async function fetchAlbum() {
         error.value = 'Kon album niet laden'
     } finally {
         loading.value = false
+        window.scrollTo(0, 0)
     }
 }
 
@@ -139,12 +140,19 @@ async function saveChanges() {
         })
         
         if (response.ok) {
+            refreshTimestamp.value = Date.now()
             await fetchAlbum()
             isEditing.value = false
             selectedFile.value = null
             coverPreview.value = null
         } else {
-            alert('Opslaan mislukt')
+            const errorData = await response.json()
+            console.error('Save failed:', errorData)
+            const detail = errorData.detail
+            const msg = Array.isArray(detail) 
+                ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('\n')
+                : detail || 'Onbekende fout'
+            alert('Opslaan mislukt:\n' + msg)
         }
     } catch (e) {
         alert('Opslaan mislukt')
@@ -157,11 +165,7 @@ async function saveChanges() {
 const isFavorite = computed(() => {
     const currentAlbum = album.value
     if (!currentAlbum) return false
-    
-    // Explicitly check for tags existence
     if (!currentAlbum.tags) return false
-    
-    // Use optional chaining just in case, though the above check should cover it
     return currentAlbum.tags.some((t:any) => t.name === 'Favoriet')
 })
 
@@ -244,6 +248,7 @@ async function syncWithMusicBrainz() {
             method: 'POST'
         })
         if (response.ok) {
+            refreshTimestamp.value = Date.now() // Added this line
             await fetchAlbum()
         } else {
             const data = await response.json()
@@ -266,9 +271,8 @@ function resolveCoverURL(url: string | undefined) {
     if (url.startsWith('http')) return url
     const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '')
     const path = url.startsWith('/') ? url : `/${url}`
-    return `${baseUrl}${path}`
+    return `${baseUrl}${path}?t=${refreshTimestamp.value}`
 }
-
 
 async function handleBulkParse(e?: Event) {
     const file = e ? (e.target as HTMLInputElement).files?.[0] : null
@@ -368,9 +372,7 @@ function getLyricsUrl(trackTitle: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`
 }
 
-onMounted(() => {
-    fetchAlbum()
-})
+onMounted(fetchAlbum)
 </script>
 
 <template>
@@ -580,6 +582,10 @@ onMounted(() => {
             <!-- Cover Upload -->
             <div class="mb-2">
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Cover Art wijzigen</label>
+                <div class="flex items-center gap-4 mb-3" v-if="coverPreview">
+                    <img :src="coverPreview" class="size-20 object-cover rounded-lg shadow-sm border border-slate-200">
+                    <p class="text-[10px] text-slate-500 font-medium">Nieuwe hoes geselecteerd</p>
+                </div>
                 <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                     <input type="file" @change="onCoverChange" accept="image/*" class="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20">
                 </div>
@@ -798,56 +804,43 @@ onMounted(() => {
                     <div class="relative flex justify-center text-xs uppercase font-bold text-slate-400 bg-white dark:bg-surface-dark px-2">Of Bestand Uploaden</div>
                 </div>
 
-                <div>
-                    <input 
-                        type="file" 
-                        accept=".txt" 
-                        @change="handleBulkParse"
-                        class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                    >
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-primary transition-colors cursor-pointer relative group">
+                    <input type="file" @change="handleBulkParse" accept=".csv,.txt" class="absolute inset-0 opacity-0 cursor-pointer">
+                    <div class="flex flex-col items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined text-4xl">upload_file</span>
+                        <span class="text-sm font-bold">Bestand Kiezen</span>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Preview Table -->
-            <div v-if="parsedPreview.length > 0" class="space-y-3">
-                <label class="block text-xs font-bold text-slate-500 uppercase">Voorbeeld Resultaat ({{ parsedPreview.length }} tracks)</label>
-                <div class="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-50 dark:bg-slate-800/50">
-                            <tr>
-                                <th class="p-2 font-bold text-slate-400 w-8">#</th>
-                                <th class="p-2 font-bold text-slate-400">Titel</th>
-                                <th class="p-2 font-bold text-slate-400 w-16">Duur</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                            <tr v-for="t in parsedPreview" :key="t.position">
-                                <td class="p-2 font-mono text-slate-400">{{ t.position }}</td>
-                                <td class="p-2 font-medium text-slate-900 dark:text-white">{{ t.title }}</td>
-                                <td class="p-2 text-slate-500">{{ t.duration || '--:--' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div v-if="isParsing" class="flex justify-center p-4">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                 </div>
-            </div>
 
-            <div v-if="bulkError" class="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold">
-                {{ bulkError }}
-            </div>
+                <div v-if="bulkError" class="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold text-center">
+                    {{ bulkError }}
+                </div>
 
-            <div v-if="isParsing" class="flex items-center justify-center py-8">
-                <div class="animate-spin h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full"></div>
+                <div v-if="parsedPreview.length > 0" class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-500 uppercase">Preview ({{ parsedPreview.length }} tracks)</label>
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-40 overflow-y-auto border border-slate-100 dark:border-slate-800">
+                        <div v-for="track in parsedPreview" :key="track.position" class="p-2 flex items-center gap-3 text-[10px]">
+                            <span class="font-bold text-slate-400 w-4">{{ track.position }}</span>
+                            <span class="flex-1 font-bold text-slate-700 dark:text-slate-200 truncate">{{ track.title }}</span>
+                            <span class="text-slate-400">{{ track.duration }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="p-6 bg-slate-50 dark:bg-slate-800/50 flex gap-3">
-            <button @click="showBulkModal = false" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Annuleren</button>
+        <div class="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+            <button @click="showBulkModal = false" class="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-colors">Annuleren</button>
             <button 
                 @click="confirmBulkImport" 
                 :disabled="parsedPreview.length === 0"
-                class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 disabled:opacity-50 disabled:shadow-none"
+                class="flex-1 py-3 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/25 disabled:opacity-50 disabled:shadow-none transition-all"
             >
-                Tracks Importeren
+                Bevestigen
             </button>
         </div>
     </div>

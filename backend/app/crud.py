@@ -5,7 +5,7 @@ from typing import List, Optional
 
 # --- Stats & Reports ---
 def get_stats(session: Session):
-    album_count = session.exec(select(func.count(Album.id))).one()
+    album_count = session.exec(select(func.count(Album.id)).where(Album.status == "collection")).one()
     artist_count = session.exec(select(func.count(Artist.id))).one()
     genre_count = session.exec(select(func.count(Genre.id))).one()
     return {
@@ -15,7 +15,7 @@ def get_stats(session: Session):
     }
 
 def get_report_stats(session: Session):
-    # Metadata counts
+    # Metadata counts (considering ALL albums, wishlist included)
     unused_genres = session.exec(
         select(func.count(Genre.id)).outerjoin(AlbumGenreLink).where(AlbumGenreLink.album_id == None)
     ).one()
@@ -28,29 +28,30 @@ def get_report_stats(session: Session):
         select(func.count(Artist.id)).outerjoin(AlbumArtistLink).where(AlbumArtistLink.album_id == None)
     ).one()
 
-    # Low usage counts (1-2 albums)
-    # This requires grouping and having
+    # Low usage counts (1-2 albums total)
     low_usage_genres = session.exec(
         select(func.count(Genre.id)).where(Genre.id.in_(
-            select(Genre.id).join(AlbumGenreLink).group_by(Genre.id).having(func.count(AlbumGenreLink.album_id) <= 2)
+            select(AlbumGenreLink.genre_id).group_by(AlbumGenreLink.genre_id).having(func.count(AlbumGenreLink.album_id) <= 2)
         ))
     ).one()
 
     low_usage_tags = session.exec(
         select(func.count(Tag.id)).where(Tag.id.in_(
-            select(Tag.id).join(AlbumTagLink).group_by(Tag.id).having(func.count(AlbumTagLink.album_id) <= 2)
+            select(AlbumTagLink.tag_id).group_by(AlbumTagLink.tag_id).having(func.count(AlbumTagLink.album_id) <= 2)
         ))
     ).one()
 
-    # Incomplete albums
-    missing_covers = session.exec(select(func.count(Album.id)).where(Album.cover_url == None)).one()
+    # Incomplete albums (only in collection)
+    missing_covers = session.exec(select(func.count(Album.id)).where(Album.cover_url == None).where(Album.status == "collection")).one()
     missing_tracks = session.exec(
-        select(func.count(Album.id)).where(Album.id.notin_(select(Track.album_id).group_by(Track.album_id)))
+        select(func.count(Album.id))
+        .where(Album.status == "collection")
+        .where(Album.id.notin_(select(Track.album_id).group_by(Track.album_id)))
     ).one()
-    missing_year = session.exec(select(func.count(Album.id)).where((Album.year == None) | (Album.year == 0))).one()
-    missing_location = session.exec(select(func.count(Album.id)).where(Album.location_id == None)).one()
-    missing_media = session.exec(select(func.count(Album.id)).where((Album.media_type == None) | (Album.media_type == ""))).one()
-    missing_catalog = session.exec(select(func.count(Album.id)).where((Album.catalog_no == None) | (Album.catalog_no == ""))).one()
+    missing_year = session.exec(select(func.count(Album.id)).where((Album.year == None) | (Album.year == 0)).where(Album.status == "collection")).one()
+    missing_location = session.exec(select(func.count(Album.id)).where(Album.location_id == None).where(Album.status == "collection")).one()
+    missing_media = session.exec(select(func.count(Album.id)).where((Album.media_type == None) | (Album.media_type == "")).where(Album.status == "collection")).one()
+    missing_catalog = session.exec(select(func.count(Album.id)).where((Album.catalog_no == None) | (Album.catalog_no == "")).where(Album.status == "collection")).one()
 
     return {
         "unused_genres": unused_genres,
@@ -74,10 +75,11 @@ def get_report_details(session: Session, report_type: str):
     elif report_type == "unused_artists":
         return session.exec(select(Artist).outerjoin(AlbumArtistLink).where(AlbumArtistLink.album_id == None)).all()
     elif report_type == "low_usage_genres":
-        # We need the count returned as well
-        statement = select(Genre, func.count(AlbumGenreLink.album_id).label("count")).join(AlbumGenreLink).group_by(Genre.id).having(func.count(AlbumGenreLink.album_id) <= 2)
+        statement = select(Genre, func.count(AlbumGenreLink.album_id).label("count"))\
+            .join(AlbumGenreLink)\
+            .group_by(Genre.id)\
+            .having(func.count(AlbumGenreLink.album_id) <= 2)
         results = session.exec(statement).all()
-        # results will be a list of tuples (Genre, count)
         items = []
         for g, count in results:
             g_dict = g.model_dump()
@@ -85,7 +87,10 @@ def get_report_details(session: Session, report_type: str):
             items.append(g_dict)
         return items
     elif report_type == "low_usage_tags":
-        statement = select(Tag, func.count(AlbumTagLink.album_id).label("count")).join(AlbumTagLink).group_by(Tag.id).having(func.count(AlbumTagLink.album_id) <= 2)
+        statement = select(Tag, func.count(AlbumTagLink.album_id).label("count"))\
+            .join(AlbumTagLink)\
+            .group_by(Tag.id)\
+            .having(func.count(AlbumTagLink.album_id) <= 2)
         results = session.exec(statement).all()
         items = []
         for t, count in results:
@@ -94,17 +99,17 @@ def get_report_details(session: Session, report_type: str):
             items.append(t_dict)
         return items
     elif report_type == "missing_covers":
-        return session.exec(select(Album).where(Album.cover_url == None).options(selectinload(Album.artists))).all()
+        return session.exec(select(Album).where(Album.cover_url == None).where(Album.status == "collection").options(selectinload(Album.artists))).all()
     elif report_type == "missing_tracks":
-        return session.exec(select(Album).where(Album.id.notin_(select(Track.album_id).group_by(Track.album_id))).options(selectinload(Album.artists))).all()
+        return session.exec(select(Album).where(Album.id.notin_(select(Track.album_id).group_by(Track.album_id))).where(Album.status == "collection").options(selectinload(Album.artists))).all()
     elif report_type == "missing_year":
-        return session.exec(select(Album).where((Album.year == None) | (Album.year == 0)).options(selectinload(Album.artists))).all()
+        return session.exec(select(Album).where((Album.year == None) | (Album.year == 0)).where(Album.status == "collection").options(selectinload(Album.artists))).all()
     elif report_type == "missing_location":
-        return session.exec(select(Album).where(Album.location_id == None).options(selectinload(Album.artists))).all()
+        return session.exec(select(Album).where(Album.location_id == None).where(Album.status == "collection").options(selectinload(Album.artists))).all()
     elif report_type == "missing_media":
-        return session.exec(select(Album).where((Album.media_type == None) | (Album.media_type == "")).options(selectinload(Album.artists))).all()
+        return session.exec(select(Album).where((Album.media_type == None) | (Album.media_type == "")).where(Album.status == "collection").options(selectinload(Album.artists))).all()
     elif report_type == "missing_catalog":
-        return session.exec(select(Album).where((Album.catalog_no == None) | (Album.catalog_no == "")).options(selectinload(Album.artists))).all()
+        return session.exec(select(Album).where((Album.catalog_no == None) | (Album.catalog_no == "")).where(Album.status == "collection").options(selectinload(Album.artists))).all()
     return []
 
 # --- Albums ---
