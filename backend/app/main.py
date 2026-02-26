@@ -102,7 +102,7 @@ app.mount("/covers", StaticFiles(directory=COVERS_DIR), name="covers")
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to DiscVault API", "version": "2.2.0"}
+    return {"message": "Welcome to DiscVault API", "version": "2.5.0"}
 
 @app.get("/health")
 def health_check():

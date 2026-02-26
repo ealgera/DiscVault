@@ -24,8 +24,11 @@
 - **Containerization**: Docker & Docker Compose.
 - **Database**: SQLite (local and persistent).
 
-### 🚀 Quick Start (Docker)
-Ensure you have Docker and Docker Compose installed.
+### 🚀 Quick Start
+You can run DiscVault in two different environments: **Acceptance (Docker)** or **Development (Local)**.
+
+#### Acceptance Environment (Docker)
+This is the recommended way to run the application in an environment similar to production. Ensure you have Docker and Docker Compose installed.
 
 1.  **Clone the repository**:
     ```bash
@@ -36,6 +39,26 @@ Ensure you have Docker and Docker Compose installed.
 2.  **Start the services**:
     ```bash
     docker-compose up -d
+    ```
+
+3.  **Access the app**:
+    Open `http://localhost:5173` (Frontend) or `http://localhost:8000/docs` (API Docs).
+
+#### Development Environment (Local)
+For local development, you need Node.js and a Python environment managed by `uv`.
+
+1.  **Start the Backend**:
+    From the root directory, run the backend using `uv` with hot-reload enabled. We use `--host 0.0.0.0` so it is accessible from your network IP:
+    ```bash
+    uv run uvicorn backend.app.main:app --host 0.0.0.0 --reload
+    ```
+
+2.  **Start the Frontend**:
+    Open a new terminal, navigate to the `frontend` directory, install dependencies, and start the development server:
+    ```bash
+    cd frontend
+    npm install
+    npm run dev
     ```
 
 3.  **Access the app**:
@@ -68,8 +91,11 @@ All data is stored in the `./data` directory:
 - **Containerisatie**: Docker & Docker Compose.
 - **Database**: SQLite (lokaal en persistent).
 
-### 🚀 Snel Starten (Docker)
-Zorg dat je Docker en Docker Compose hebt geïnstalleerd.
+### 🚀 Snel Starten
+Je kunt DiscVault draaien in twee verschillende omgevingen: **Acceptatie (Docker)** of **Ontwikkeling (Lokaal)**.
+
+#### Acceptatieomgeving (Docker)
+Dit is de aanbevolen manier om de applicatie te draaien in een productie-achtige omgeving. Zorg dat je Docker en Docker Compose hebt geïnstalleerd.
 
 1.  **Clone de repository**:
     ```bash
@@ -80,6 +106,26 @@ Zorg dat je Docker en Docker Compose hebt geïnstalleerd.
 2.  **Start de diensten**:
     ```bash
     docker-compose up -d
+    ```
+
+3.  **App openen**:
+    Open `http://localhost:5173` (Frontend) of `http://localhost:8000/docs` (API Documentatie).
+
+#### Ontwikkelomgeving (Lokaal)
+Voor lokale ontwikkeling heb je Node.js en een Python-omgeving beheerd door `uv` nodig.
+
+1.  **Start de Backend**:
+    Vanuit de hoofdmap start je de backend met `uv` met hot-reload ingeschakeld. We gebruiken `--host 0.0.0.0` zodat het API bereikbaar is via je netwerk IP:
+    ```bash
+    uv run uvicorn backend.app.main:app --host 0.0.0.0 --reload
+    ```
+
+2.  **Start de Frontend**:
+    Open een nieuwe terminal, ga naar de `frontend`-map, installeer de afhankelijkheden en start de ontwikkelserver:
+    ```bash
+    cd frontend
+    npm install
+    npm run dev
     ```
 
 3.  **App openen**:

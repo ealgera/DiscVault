@@ -196,7 +196,7 @@ function reloadApp() {
         <!-- Version Footer -->
         <div class="mt-20 text-center pb-10">
             <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300 dark:text-slate-700">
-                DiscVault Version 2.2.0
+                DiscVault Version 2.5.0
             </p>
         </div>
     </div>

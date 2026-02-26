@@ -267,29 +267,40 @@ def get_albums(session: Session, offset: int = 0, limit: int = 100, sort_by: str
     if status is not None:
         statement = statement.where(Album.status == status)
 
-    # Sort Logic
-    sort_attr = None
-    if sort_by == "title":
-        # Case insensitive sort for title
-        sort_attr = func.lower(Album.title)
-    elif sort_by == "year":
-        sort_attr = Album.year
-    elif sort_by == "created_at":
-        sort_attr = Album.created_at
-    elif sort_by == "artist":
-        # To sort by artist, we join and take the first artist name
-        # This is a bit complex for a single query, but we can join and use func.min(Artist.name)
-        statement = statement.join(AlbumArtistLink, isouter=True).join(Artist, isouter=True).group_by(Album.id)
-        sort_attr = func.min(Artist.name)
+    # For secondary sorting we always need Artist info to sort conditionally.
+    # Joining Artist is safe even if Album doesn't have an artist (isouter=True).
+    statement = statement.join(AlbumArtistLink, isouter=True).join(Artist, isouter=True).group_by(Album.id)
     
-    if sort_attr is not None:
-        if order == "desc":
-            statement = statement.order_by(desc(sort_attr))
-        else:
-            statement = statement.order_by(sort_attr)
+    # Define our reusable sort attributes
+    attr_title = func.lower(Album.title)
+    attr_artist = func.min(Artist.name)
+    attr_year = Album.year
+    attr_created = Album.created_at
+
+    # Sort Logic
+    sorts = []
+
+    if sort_by == "title":
+        sorts.append(desc(attr_title) if order == "desc" else attr_title)
+        sorts.append(attr_artist) # Secondary: Artist (ASC)
+    elif sort_by == "artist":
+        sorts.append(desc(attr_artist) if order == "desc" else attr_artist)
+        sorts.append(attr_title) # Secondary: Title (ASC)
+    elif sort_by == "year":
+        sorts.append(desc(attr_year) if order == "desc" else attr_year)
+        sorts.append(attr_artist) # Secondary: Artist (ASC)
+        sorts.append(attr_title) # Tertiary: Title (ASC)
+    elif sort_by == "created_at":
+        sorts.append(desc(attr_created) if order == "desc" else attr_created)
+        sorts.append(attr_artist) # Secondary: Artist (ASC)
+        sorts.append(attr_title) # Tertiary: Title (ASC)
     else:
-        # Default fallback
-        statement = statement.order_by(desc(Album.created_at))
+        # Fallback default sorting behavior
+        sorts.append(desc(attr_created))
+        sorts.append(attr_artist)
+        sorts.append(attr_title)
+
+    statement = statement.order_by(*sorts)
 
     return session.exec(statement.offset(offset).limit(limit)).all()
 

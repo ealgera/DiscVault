@@ -28,9 +28,11 @@ async def download_image(url: str, dest_path: Path) -> Optional[str]:
                 logger.info(f"Successfully downloaded {url} to {dest_path}")
                 return dest_path.name
             else:
-                logger.error(f"Failed to download image from {url}: Status {response.status_code}")
+                logger.error(f"Failed to download image from {url}: Status {response.status_code} - Body: {response.text[:100]}")
     except Exception as e:
-        logger.error(f"Error downloading image from {url}: {str(e)}")
+        logger.error(f"Error downloading image from {url}: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         
     return None
 

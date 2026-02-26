@@ -18,8 +18,8 @@ const route = useRoute()
 const searchQuery = ref(route.query.q?.toString() || '')
 const searchFilter = ref(route.query.filter?.toString() || 'all')
 const currentStatus = ref(route.query.status?.toString() || 'collection')
-const sortBy = ref(route.query.sort?.toString() || 'created_at')
-const sortOrder = ref(route.query.order?.toString() || 'desc')
+const sortBy = ref(route.query.sort?.toString() || 'artist')
+const sortOrder = ref(route.query.order?.toString() || 'asc')
 const albums = ref<Album[]>([])
 const loading = ref(true)
 const showSortMenu = ref(false)
@@ -68,8 +68,8 @@ function handleSearch() {
 function setFilter(filter: string) {
     if (filter === 'all') {
         searchQuery.value = ''
-        sortBy.value = 'created_at'
-        sortOrder.value = 'desc'
+        sortBy.value = 'artist'
+        sortOrder.value = 'asc'
     }
     searchFilter.value = filter
     updateQuery()
@@ -160,8 +160,17 @@ onMounted(() => {
           @input="handleSearch"
           type="text" 
           placeholder="Zoek in je collectie..." 
-          class="w-full pl-10 pr-4 py-3 rounded-xl border-none shadow-sm bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
+          class="w-full pl-10 pr-10 py-3 rounded-xl border-none shadow-sm bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
         >
+        <!-- Clear Button -->
+        <button 
+          v-if="searchQuery"
+          @click="searchQuery = ''; handleSearch()"
+          class="absolute inset-y-0 right-4 flex items-center pr-3 group"
+          title="Wissen"
+        >
+          <span class="material-symbols-outlined text-slate-300 hover:text-slate-500 transition-colors text-lg">close</span>
+        </button>
       </div>
 
       <!-- Top Bar: Results Count & Sorting -->
