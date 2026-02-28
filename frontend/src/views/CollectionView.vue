@@ -114,6 +114,63 @@ function goToDetail(id: number) {
     router.push(`/albums/${id}`)
 }
 
+const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+
+const alphabetMapping = computed(() => {
+    const mapping: Record<string, number> = {}
+    
+    if (sortBy.value !== 'title' && sortBy.value !== 'artist') {
+        return mapping
+    }
+
+    for (const album of albums.value) {
+        let textToUse = ''
+        if (sortBy.value === 'title') {
+            textToUse = album.title
+        } else if (sortBy.value === 'artist') {
+            if (album.artists && album.artists.length > 0) {
+                // The DB sorts by func.min(Artist.name), so we must find the alphabetically first artist
+                const names = album.artists.map(a => a.name)
+                names.sort()
+                textToUse = names[0] || ''
+            }
+        }
+        
+        if (!textToUse) continue
+        
+        // Remove articles for sorting logic consistency only if the DB does it (but user manually handles this via 'Kast (De)')
+        let cleanText = textToUse.trim().toUpperCase()
+        
+        const firstChar = cleanText.charAt(0)
+        
+        // If it's a letter and not mapped yet
+        if (firstChar >= 'A' && firstChar <= 'Z' && !mapping[firstChar]) {
+            mapping[firstChar] = album.id
+        }
+    }
+    return mapping
+})
+
+function scrollToLetter(letter: string) {
+    const targetId = alphabetMapping.value[letter]
+    if (targetId) {
+        const element = document.getElementById(`album-${targetId}`)
+        if (element) {
+            // Adjust scroll position dynamically based on actual header height
+            const headerElement = document.getElementById('main-header')
+            const headerOffset = headerElement ? headerElement.offsetHeight + 16 : 220 
+            
+            const elementPosition = element.getBoundingClientRect().top
+            const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+            
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            })
+        }
+    }
+}
+
 onMounted(() => {
     // If URL has query, fetch immediately
     if (searchQuery.value) {
@@ -128,7 +185,7 @@ onMounted(() => {
   <div class="min-h-screen bg-gray-50 dark:bg-background-dark pb-24">
     
     <!-- HEADER -->
-    <div class="sticky top-0 z-30 bg-gray-50/90 dark:bg-background-dark/90 backdrop-blur-md pt-4 pb-2">
+    <div id="main-header" class="sticky top-0 z-30 bg-gray-50/90 dark:bg-background-dark/90 backdrop-blur-md pt-4 pb-2">
       <!-- Status Tabs -->
       <div class="flex px-4 mb-4">
         <div class="flex p-1 bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 w-full">
@@ -151,8 +208,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="relative px-4">
-        <span class="absolute inset-y-0 left-4 flex items-center pl-3">
+      <div class="relative px-4 md:w-1/2 md:mx-auto">
+        <span class="absolute inset-y-0 left-4 md:left-4 flex items-center pl-3">
           <span class="material-symbols-outlined text-slate-400">search</span>
         </span>
         <input 
@@ -243,9 +300,27 @@ onMounted(() => {
       </div>
 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- A-Z Sidebar (Desktop only) -->
+        <div 
+          v-if="sortBy === 'title' || sortBy === 'artist'"
+          class="fixed right-2 top-1/2 transform -translate-y-1/2 z-40 hidden sm:flex flex-col text-xs lg:text-sm font-bold bg-white/50 dark:bg-surface-dark/50 backdrop-blur-sm rounded-full py-2 px-1 border border-slate-200 dark:border-slate-800 shadow-sm"
+        >
+          <button
+            v-for="letter in alphabet"
+            :key="letter"
+            @click="scrollToLetter(letter)"
+            class="w-6 h-6 lg:w-7 lg:h-7 flex items-center justify-center rounded-full transition-colors my-[1px]"
+            :class="alphabetMapping[letter] ? 'text-primary hover:bg-primary hover:text-white cursor-pointer' : 'text-slate-300 dark:text-slate-700 cursor-default'"
+            :disabled="!alphabetMapping[letter]"
+          >
+            {{ letter }}
+          </button>
+        </div>
+
         <div 
           v-for="album in albums" 
           :key="album.id" 
+          :id="'album-' + album.id"
           @click="goToDetail(album.id)"
           class="bg-white dark:bg-surface-dark border border-gray-100 dark:border-slate-800 p-4 rounded-lg shadow-sm flex items-center space-x-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
         >

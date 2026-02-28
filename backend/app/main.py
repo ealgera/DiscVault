@@ -147,13 +147,18 @@ def search_albums(
 ):
     q_lower = q.lower().strip()
     
+    is_exact = False
+    if q_lower.startswith('"') and q_lower.endswith('"') and len(q_lower) > 1:
+        is_exact = True
+        q_lower = q_lower[1:-1].strip()
+    
     results = []
     
     # helper for AND logic on tags/genres
     def search_with_logic(model, link_model, attr_name):
         nonlocal results
         # Check for AND/OR
-        if " and " in q_lower:
+        if " and " in q_lower and not is_exact:
             terms = [t.strip() for t in q_lower.split(" and ") if t.strip()]
             if not terms: return
             
@@ -169,7 +174,7 @@ def search_albums(
             if matching_ids:
                 results += session.exec(select(Album).where(Album.id.in_(list(matching_ids)))).all()
         
-        elif " or " in q_lower:
+        elif " or " in q_lower and not is_exact:
             terms = [t.strip() for t in q_lower.split(" or ") if t.strip()]
             if not terms: return
             
@@ -181,20 +186,32 @@ def search_albums(
             results += session.exec(stmt).all()
         else:
             # Standard single term search
-            results += session.exec(select(Album).join(link_model).join(model).where(func.lower(getattr(model, attr_name)).contains(q_lower))).all()
+            if is_exact:
+                results += session.exec(select(Album).join(link_model).join(model).where(func.lower(getattr(model, attr_name)) == q_lower)).all()
+            else:
+                results += session.exec(select(Album).join(link_model).join(model).where(func.lower(getattr(model, attr_name)).contains(q_lower))).all()
 
     # 1. Search by Title
     if filter in ["all", "title"]:
-        results += session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
+        if is_exact:
+            results += session.exec(select(Album).where(func.lower(Album.title) == q_lower)).all()
+        else:
+            results += session.exec(select(Album).where(func.lower(Album.title).contains(q_lower))).all()
     
     # 2. Search by Artist Name
     if filter in ["all", "artist"]:
         # We can also support AND/OR for artists if we want, but requirements specifically mentioned genres/tags
-        results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
+        if is_exact:
+            results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name) == q_lower)).all()
+        else:
+            results += session.exec(select(Album).join(AlbumArtistLink).join(Artist).where(func.lower(Artist.name).contains(q_lower))).all()
     
     # 3. Search by Notes
     if filter == "all":
-        results += session.exec(select(Album).where(func.lower(Album.notes).contains(q_lower))).all()
+        if is_exact:
+            results += session.exec(select(Album).where(func.lower(Album.notes) == q_lower)).all()
+        else:
+            results += session.exec(select(Album).where(func.lower(Album.notes).contains(q_lower))).all()
 
     # 4. Search by Genre
     if filter in ["all", "genre"]:
@@ -208,11 +225,17 @@ def search_albums(
     if filter in ["all", "track"]:
         # Join Tracks and filter by title
         from .models import Track
-        results += session.exec(select(Album).join(Track).where(func.lower(Track.title).contains(q_lower))).all()
+        if is_exact:
+            results += session.exec(select(Album).join(Track).where(func.lower(Track.title) == q_lower)).all()
+        else:
+            results += session.exec(select(Album).join(Track).where(func.lower(Track.title).contains(q_lower))).all()
 
     # 7. Search by Media Type
     if filter in ["all", "media_type"]:
-        results += session.exec(select(Album).where(func.lower(Album.media_type).contains(q_lower))).all()
+        if is_exact:
+            results += session.exec(select(Album).where(func.lower(Album.media_type) == q_lower)).all()
+        else:
+            results += session.exec(select(Album).where(func.lower(Album.media_type).contains(q_lower))).all()
 
     # Combine and Deduplicate (by ID)
     seen_ids = set()

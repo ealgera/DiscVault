@@ -30,6 +30,10 @@ You can run DiscVault in two different environments: **Acceptance (Docker)** or 
 #### Acceptance Environment (Docker)
 This is the recommended way to run the application in an environment similar to production. Ensure you have Docker and Docker Compose installed.
 
+> **Note**: Images are hosted on the GitHub Container Registry (ghcr.io). Make sure you are authenticated.
+`docker login ghcr.io -u <your-github-username>`  
+Use GitHub personal token as password.
+
 1.  **Clone the repository**:
     ```bash
     git clone https://github.com/[your-repo]/discvault.git
@@ -96,6 +100,10 @@ Je kunt DiscVault draaien in twee verschillende omgevingen: **Acceptatie (Docker
 
 #### Acceptatieomgeving (Docker)
 Dit is de aanbevolen manier om de applicatie te draaien in een productie-achtige omgeving. Zorg dat je Docker en Docker Compose hebt geïnstalleerd.
+
+> **Let op**: De images worden gehost op de GitHub Container Registry (ghcr.io). Zorg eerst dat je ingelogd bent.
+`docker login ghcr.io -u <jouw-github-gebruikersnaam>`  
+Gebruik je GitHub personal token als wachtwoord.
 
 1.  **Clone de repository**:
     ```bash

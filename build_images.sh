@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Configuratie
-VERSION="2.2.1"
+VERSION="2.5.0"
 APP_NAME="discvault"
-REGISTRY="ealgera"
+REGISTRY="ghcr.io/ealgera"
 
 get_image_name() {
     if [ -z "$REGISTRY" ]; then
@@ -39,7 +39,8 @@ if [ -z "$REGISTRY" ]; then
     echo "  docker save $BACKEND_IMAGE | gzip > backend.tar.gz"
     echo "  docker save $FRONTEND_IMAGE | gzip > frontend.tar.gz"
 else
-    echo "Tip: Om te uploaden naar Docker Hub:"
-    echo "  docker push $BACKEND_IMAGE"
-    echo "  docker push $FRONTEND_IMAGE"
+    echo "Tip: Om te uploaden naar GitHub Container Registry:"
+    echo "  1. Log in: docker login ghcr.io -u <github-username>"
+    echo "  2. docker push $BACKEND_IMAGE"
+    echo "  3. docker push $FRONTEND_IMAGE"
 fi
